@@ -1,0 +1,23 @@
+.main-container {
+  background-color: #f9fafb;
+  font-family: sans-serif;
+  min-height: 100vh;
+  padding-bottom: 80px; /* Espacio para la barra de navegación */
+}
+
+.settings-option {
+  background-color: white;
+  transition: background-color 0.2s;
+}
+
+.settings-option:hover {
+  background-color: #f3f4f6;
+}
+
+.avatar-placeholder {
+  width: 144px;
+  height: 144px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin: 0 auto;
+}

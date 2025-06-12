@@ -1,0 +1,79 @@
+#map {
+  height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* Sombra para la barra de búsqueda */
+.search-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Botones del mapa con sombra */
+.map-button {
+  width: 44px;
+  height: 44px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.map-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Botón rosa flotante */
+.fab-button {
+  width: 56px;
+  height: 56px;
+  background: #f9a8d4;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(249, 168, 212, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.fab-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(249, 168, 212, 0.5);
+}
+
+/* Overlay para el contenido sobre el mapa */
+.map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.map-overlay > * {
+  pointer-events: auto;
+}
+
+/* Estilo para el logo placeholder */
+.logo-placeholder {
+  width: 120px;
+  height: 40px;
+  background: #f3f4f6;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #6b7280;
+}

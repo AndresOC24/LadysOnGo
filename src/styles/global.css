@@ -5,8 +5,9 @@
 /* Asegurar que la app ocupe toda la pantalla en móvil */
 html,
 body {
-  height: 100%;
-  overflow: hidden; /* Color de fondo gris claro */
+  margin: 0;
+  padding: 0;
+  height: 100%; /* Color de fondo gris claro */
 }
 
 /* Personalización para el input */

@@ -1,62 +1,117 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
-//INICIO
-/* Asegurar que la app ocupe toda la pantalla en móvil */
-html,
-body {
+body,html {
+  font-family: "Inter", sans-serif;
   margin: 0;
   padding: 0;
-  height: 100%; /* Color de fondo gris claro */
+  height: 100%;
+  overflow-x: hidden;
 }
 
-/* Personalización para el input */
 input::placeholder {
   color: #9ca3af;
 }
 
-/* Estilo para los iconos circulares */
 .icon-circle {
   width: 48px;
   height: 48px;
   background-color: #e5e7eb;
   border-radius: 50%;
 }
-/* Prevenir scroll horizontal */
-body {
-  overflow-x: hidden;
-}
-////////////////////
-//PERFIL
 
-/* Estilo para el avatar placeholder */
-.avatar-placeholder {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
+/* Estilos para el menú deslizante */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 998;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
 }
 
-/* Efecto hover para las opciones */
-.settings-option {
-  transition: background-color 0.2s ease;
+.menu-overlay.active {
+  opacity: 1;
+  visibility: visible;
 }
 
-.settings-option:hover {
-  background-color: #f3f4f6;
+.slide-menu {
+  position: fixed;
+  top: 0;
+  left: -50%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  z-index: 999;
+  transition: left 0.3s ease;
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Contenedor principal con fondo blanco */
-.main-container {
-  background: white;
-  min-height: 100vh;
-  max-width: 400px;
-  margin: 0 auto;
-  position: relative;
+.slide-menu.active {
+  left: 0;
+}
+
+.menu-item {
+  transition: all 0.2s ease;
+}
+
+.menu-item:hover {
+  background-color: rgba(236, 72, 153, 0.05);
+  border-left: 4px solid #ec4899;
+}
+
+.menu-item:active {
+  background-color: rgba(236, 72, 153, 0.1);
+}
+
+/* Animación de entrada de elementos del menú */
+.menu-item {
+  opacity: 0;
+  transform: translateX(-20px);
+  animation: slideInMenu 0.3s ease forwards;
+}
+
+.menu-item:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.menu-item:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.menu-item:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.menu-item:nth-child(4) {
+  animation-delay: 0.25s;
+}
+.menu-item:nth-child(5) {
+  animation-delay: 0.3s;
+}
+.menu-item:nth-child(6) {
+  animation-delay: 0.35s;
+}
+.menu-item:nth-child(7) {
+  animation-delay: 0.4s;
+}
+.menu-item:nth-child(8) {
+  animation-delay: 0.45s;
+}
+
+@keyframes slideInMenu {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .slide-menu {
+    width: 75%;
+    left: -75%;
+  }
 }

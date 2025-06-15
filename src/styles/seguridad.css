@@ -1,0 +1,63 @@
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #f9fafb;
+}
+
+/* Contenedor principal con fondo blanco */
+.main-container {
+  background: white;
+  min-height: 100vh;
+  max-width: 400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Botón de pánico grande */
+.panic-button {
+  width: 200px;
+  height: 200px;
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 25px rgba(236, 72, 153, 0.3);
+  border: none;
+}
+
+.panic-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 30px rgba(236, 72, 153, 0.4);
+}
+
+.panic-button:active {
+  transform: scale(0.95);
+}
+
+/* Estilos para las secciones de configuración */
+.setting-item {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.setting-label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.setting-value {
+  color: #6b7280;
+  font-size: 14px;
+}

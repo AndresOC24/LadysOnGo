@@ -11,6 +11,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.9",
     "astro": "^5.9.2",
+    "firebase": "^11.9.1",
     "leaflet": "^1.9.4"
   },
   "devDependencies": {

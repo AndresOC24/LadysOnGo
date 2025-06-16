@@ -1,6 +1,8 @@
 ---
 import Layout from '../layout/layout.astro'
 import Inicio from '../components/inicio.astro'
+import { db }     from "../lib/firebase.js";
+import { collection, addDoc } from "firebase/firestore";
 ---
 
 <Layout>

@@ -76,29 +76,36 @@ import "../styles/mapa.css";
       <!-- Controles del mapa (lado derecho) -->
       <div class="absolute right-4 top-1/2 transform -translate-y-1/2 space-y-3">
         <!-- Zoom in -->
-        <button class="map-button" onclick="zoomIn()">
+        <button class="map-button" onclick="zoomIn()" title="Acercar">
           <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
           </svg>
         </button>
 
         <!-- Zoom out -->
-        <button class="map-button" onclick="zoomOut()">
+        <button class="map-button" onclick="zoomOut()" title="Alejar">
           <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
           </svg>
         </button>
 
         <!-- Mi ubicación -->
-        <button class="map-button" onclick="centerToMyLocation()">
+        <button class="map-button" onclick="centerToMyLocation()" title="Mi ubicación">
           <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
           </svg>
         </button>
 
-        <!-- Actualizar viajes -->
-        <button class="map-button" onclick="refreshRides()" id="refreshBtn">
+        <!-- Limpiar viajes (reemplaza actualizar) -->
+        <button class="map-button" onclick="cleanupTrips()" id="cleanupBtn" title="Limpiar viajes antiguos">
+          <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+          </svg>
+        </button>
+
+        <!-- Actualizar -->
+        <button class="map-button" onclick="refreshRides()" id="refreshBtn" title="Actualizar">
           <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
           </svg>
@@ -110,6 +117,7 @@ import "../styles/mapa.css";
         class="driver-status-button absolute right-4 bottom-24" 
         onclick="toggleDriverStatus()"
         id="driverStatusFab"
+        title="Cambiar estado"
       >
         <svg class="w-6 h-6 mb-1" fill="currentColor" viewBox="0 0 20 20">
           <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path>
@@ -142,7 +150,16 @@ import "../styles/mapa.css";
 
           <!-- Viajes disponibles -->
           <div class="mb-4">
-            <h3 class="font-semibold text-gray-900 mb-2">Viajes Disponibles</h3>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold text-gray-900">Viajes Disponibles</h3>
+              <button 
+                onclick="cleanupTrips()" 
+                class="px-2 py-1 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600 transition-colors"
+                title="Limpiar viajes antiguos"
+              >
+                🧹 Limpiar
+              </button>
+            </div>
             <div id="availableRides" class="space-y-2">
               <div class="text-center py-8 text-gray-500">
                 <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

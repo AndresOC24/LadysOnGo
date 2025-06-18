@@ -1,6 +1,6 @@
-// public/javascript-driver.js - Sistema de viajes para conductoras (CORREGIDO)
+// public/javascript-driver.js - Con sistema de limpieza
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
-import { getDatabase, ref, onValue, off, update } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
+import { getDatabase, ref, onValue, off, update, remove } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -21,7 +21,7 @@ let map;
 let currentLocationMarker = null;
 let isDriverOnline = false;
 
-// Driver Trip Manager
+// Driver Trip Manager con limpieza automática
 class DriverTripManager {
   constructor() {
     this.isOnline = false;
@@ -31,6 +31,14 @@ class DriverTripManager {
     this.currentTrip = null;
     this.startTime = null;
     this.statsInterval = null;
+    this.cleanupInterval = null;
+    
+    // Variables para animación
+    this.isMoving = false;
+    this.movementInterval = null;
+    this.currentPosition = null;
+    this.targetPosition = null;
+    this.routeLine = null;
   }
 
   async init() {
@@ -38,8 +46,67 @@ class DriverTripManager {
     this.initMap();
     this.setupEventListeners();
     this.setupNotificationPermission();
+    this.startCleanupService(); // Iniciar limpieza automática
     console.log('🚗 Sistema de conductora inicializado');
-    console.log('📱 Driver ID:', this.driverId);
+  }
+
+  // Servicio de limpieza automática
+  startCleanupService() {
+    // Limpiar viajes completados/cancelados cada 30 segundos
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupOldTrips();
+    }, 30000);
+    
+    console.log('🧹 Servicio de limpieza iniciado');
+  }
+
+  stopCleanupService() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  async cleanupOldTrips() {
+    try {
+      const tripsRef = ref(database, 'trips');
+      const snapshot = await new Promise((resolve, reject) => {
+        onValue(tripsRef, resolve, reject, { onlyOnce: true });
+      });
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const now = Date.now();
+        const maxAge = 5 * 60 * 1000; // 5 minutos
+
+        for (const [tripId, trip] of Object.entries(data)) {
+          // Eliminar viajes completados, cancelados o muy antiguos
+          const shouldDelete = (
+            trip.status === 'completed' ||
+            trip.status === 'cancelled' ||
+            (now - trip.timestamp) > maxAge
+          );
+
+          if (shouldDelete) {
+            console.log('🗑️ Eliminando viaje:', tripId, 'Estado:', trip.status);
+            await remove(ref(database, `trips/${tripId}`));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error en limpieza automática:', error);
+    }
+  }
+
+  // Limpieza manual (botón)
+  async manualCleanup() {
+    try {
+      this.showToast('🧹 Limpiando viajes antiguos...', 'info');
+      await this.cleanupOldTrips();
+      this.showToast('✅ Limpieza completada', 'success');
+    } catch (error) {
+      this.showToast('❌ Error en limpieza', 'error');
+    }
   }
 
   generateDriverId() {
@@ -47,7 +114,6 @@ class DriverTripManager {
   }
 
   initMap() {
-    // Verificar si Leaflet está disponible
     if (typeof L === 'undefined') {
       console.error('❌ Leaflet no está cargado');
       return;
@@ -55,7 +121,7 @@ class DriverTripManager {
 
     map = L.map('map', {
       zoomControl: false
-    }).setView([-17.783333, -63.182222], 13); // Santa Cruz de la Sierra
+    }).setView([-17.783333, -63.182222], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
@@ -90,6 +156,7 @@ class DriverTripManager {
     };
     window.centerToMyLocation = () => this.centerToMyLocation();
     window.refreshRides = () => this.manualRefresh();
+    window.cleanupTrips = () => this.manualCleanup(); // Nueva función
   }
 
   async setupNotificationPermission() {
@@ -119,8 +186,8 @@ class DriverTripManager {
       this.showToast('Conectando...', 'info');
 
       const driverLocation = this.generateSimulatedLocation();
+      this.currentPosition = driverLocation;
       
-      // Actualizar mapa con ubicación de conductora
       if (map) {
         map.setView([driverLocation.lat, driverLocation.lng], 15);
         
@@ -163,6 +230,10 @@ class DriverTripManager {
 
   async goOffline() {
     try {
+      // Detener cualquier movimiento en curso
+      this.stopMovement();
+      this.stopCleanupService();
+      
       await update(ref(database, `drivers/${this.driverId}`), {
         status: 'offline',
         lastSeen: Date.now()
@@ -177,6 +248,11 @@ class DriverTripManager {
       if (currentLocationMarker && map) {
         map.removeLayer(currentLocationMarker);
         currentLocationMarker = null;
+      }
+      
+      if (this.routeLine && map) {
+        map.removeLayer(this.routeLine);
+        this.routeLine = null;
       }
       
       this.showToast('⏹️ Desconectada', 'info');
@@ -264,7 +340,6 @@ class DriverTripManager {
       
       console.log('📱 Viajes encontrados:', trips.length);
       
-      // Detectar nuevos viajes
       const newTrips = trips.filter(trip => 
         !this.availableTrips.find(existing => existing.id === trip.id)
       );
@@ -297,7 +372,6 @@ class DriverTripManager {
   showTripNotification(trip) {
     console.log('🔔 Mostrando notificación para viaje:', trip);
     
-    // Notificación del navegador
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('🚗 ¡Nuevo viaje disponible!', {
         body: `Viaje hacia: ${trip.destination}\nTarifa estimada: $${trip.estimatedFare}`,
@@ -315,7 +389,6 @@ class DriverTripManager {
       setTimeout(() => notification.close(), 15000);
     }
 
-    // Modal en la aplicación - SIEMPRE mostrar
     setTimeout(() => {
       this.showTripModal(trip);
     }, 500);
@@ -328,7 +401,6 @@ class DriverTripManager {
     const distance = this.calculateDistance();
     const timeAgo = this.getTimeAgo(trip.timestamp);
 
-    // Crear el modal con funciones inline para evitar problemas de scope
     const modalHTML = `
       <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
         <div class="text-center mb-4">
@@ -391,7 +463,6 @@ class DriverTripManager {
 
     this.showModal(modalHTML, 30000);
 
-    // Agregar event listeners después de crear el modal
     setTimeout(() => {
       const acceptBtn = document.getElementById('accept-trip-btn');
       const declineBtn = document.getElementById('decline-trip-btn');
@@ -420,7 +491,13 @@ class DriverTripManager {
       this.hideModal();
       this.showToast('Aceptando viaje...', 'info');
 
-      const driverLocation = this.generateSimulatedLocation();
+      // Encontrar el viaje específico
+      const trip = this.availableTrips.find(t => t.id === tripId);
+      if (!trip) {
+        throw new Error('Viaje no encontrado');
+      }
+
+      const driverLocation = this.currentPosition || this.generateSimulatedLocation();
       
       const updates = {
         [`trips/${tripId}/status`]: 'accepted',
@@ -437,7 +514,14 @@ class DriverTripManager {
       console.log('📝 Actualizando Firebase con:', updates);
       await update(ref(database), updates);
       
-      this.showToast('🎉 ¡Viaje aceptado!', 'success');
+      this.currentTrip = trip;
+      this.targetPosition = trip.passenger.location;
+      
+      // Mostrar ruta y iniciar movimiento
+      this.showRouteToPassenger(driverLocation, trip.passenger.location);
+      this.startMovementToPassenger(trip.passenger.location);
+      
+      this.showToast('🎉 ¡Viaje aceptado! Dirigiéndote hacia la pasajera...', 'success');
       this.updateStats();
       
       console.log('✅ Viaje aceptado exitosamente:', tripId);
@@ -445,6 +529,172 @@ class DriverTripManager {
       console.error('❌ Error aceptando viaje:', error);
       this.showToast('❌ Error al aceptar viaje: ' + error.message, 'error');
     }
+  }
+
+  showRouteToPassenger(driverLocation, passengerLocation) {
+    if (!map) return;
+
+    // Remover ruta anterior si existe
+    if (this.routeLine) {
+      map.removeLayer(this.routeLine);
+    }
+
+    const latlngs = [
+      [driverLocation.lat, driverLocation.lng],
+      [passengerLocation.lat, passengerLocation.lng]
+    ];
+    
+    this.routeLine = L.polyline(latlngs, {
+      color: '#ec4899',
+      weight: 4,
+      opacity: 0.8,
+      dashArray: '10, 10'
+    }).addTo(map);
+
+    // Ajustar vista para mostrar toda la ruta
+    const group = new L.featureGroup([this.routeLine]);
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+
+  startMovementToPassenger(passengerLocation) {
+    if (this.isMoving) {
+      this.stopMovement();
+    }
+
+    console.log('🚗 Iniciando movimiento hacia pasajera...');
+    this.isMoving = true;
+    this.targetPosition = passengerLocation;
+
+    // Calcular la distancia total y el número de pasos
+    const startLat = this.currentPosition.lat;
+    const startLng = this.currentPosition.lng;
+    const endLat = passengerLocation.lat;
+    const endLng = passengerLocation.lng;
+
+    const totalSteps = 30; // Número de pasos para llegar
+    const stepLat = (endLat - startLat) / totalSteps;
+    const stepLng = (endLng - startLng) / totalSteps;
+
+    let currentStep = 0;
+
+    this.movementInterval = setInterval(async () => {
+      if (currentStep >= totalSteps) {
+        // Llegó al destino
+        this.arrivedAtPassenger();
+        return;
+      }
+
+      // Calcular nueva posición
+      const newLat = startLat + (stepLat * currentStep);
+      const newLng = startLng + (stepLng * currentStep);
+      
+      this.currentPosition = { lat: newLat, lng: newLng };
+
+      // Actualizar marcador en el mapa
+      if (currentLocationMarker && map) {
+        currentLocationMarker.setLatLng([newLat, newLng]);
+        
+        // Actualizar la línea de ruta
+        if (this.routeLine) {
+          map.removeLayer(this.routeLine);
+          
+          const latlngs = [
+            [newLat, newLng],
+            [endLat, endLng]
+          ];
+          
+          this.routeLine = L.polyline(latlngs, {
+            color: '#ec4899',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '10, 10'
+          }).addTo(map);
+        }
+      }
+
+      // Actualizar posición en Firebase para que la pasajera lo vea
+      try {
+        await update(ref(database, `trips/${this.currentTrip.id}/driver/location`), {
+          lat: newLat,
+          lng: newLng
+        });
+      } catch (error) {
+        console.error('Error actualizando posición:', error);
+      }
+
+      currentStep++;
+      
+      // Calcular progreso
+      const progress = Math.round((currentStep / totalSteps) * 100);
+      console.log(`🚗 Progreso: ${progress}%`);
+      
+      // Mostrar toast de progreso cada 25%
+      if (progress % 25 === 0 && progress > 0 && progress < 100) {
+        this.showToast(`🚗 ${progress}% del camino completado`, 'info');
+      }
+
+    }, 2000); // Moverse cada 2 segundos
+  }
+
+  async arrivedAtPassenger() {
+    console.log('🎯 ¡Llegaste a la pasajera!');
+    this.stopMovement();
+    
+    try {
+      // Actualizar estado del viaje
+      await update(ref(database, `trips/${this.currentTrip.id}`), {
+        status: 'in_progress',
+        arrivedAt: Date.now()
+      });
+      
+      this.showToast('🎯 ¡Has llegado a la pasajera!', 'success');
+      
+      // Simular que después de 10 segundos se completa el viaje
+      setTimeout(async () => {
+        await this.completeTrip();
+      }, 10000);
+      
+    } catch (error) {
+      console.error('Error al arribar:', error);
+    }
+  }
+
+  async completeTrip() {
+    if (!this.currentTrip) return;
+    
+    try {
+      await update(ref(database, `trips/${this.currentTrip.id}`), {
+        status: 'completed',
+        completedAt: Date.now()
+      });
+      
+      this.showToast('✅ ¡Viaje completado!', 'success');
+      this.resetAfterTrip();
+      
+    } catch (error) {
+      console.error('Error completando viaje:', error);
+    }
+  }
+
+  stopMovement() {
+    if (this.movementInterval) {
+      clearInterval(this.movementInterval);
+      this.movementInterval = null;
+    }
+    this.isMoving = false;
+  }
+
+  resetAfterTrip() {
+    this.currentTrip = null;
+    this.targetPosition = null;
+    this.stopMovement();
+    
+    if (this.routeLine && map) {
+      map.removeLayer(this.routeLine);
+      this.routeLine = null;
+    }
+    
+    console.log('🔄 Listo para el siguiente viaje');
   }
 
   declineTrip(tripId) {
@@ -478,6 +728,7 @@ class DriverTripManager {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
           <p>${this.isOnline ? 'No hay viajes disponibles' : 'Conecta para recibir viajes'}</p>
+          ${this.isOnline ? '<button onclick="window.cleanupTrips()" class="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm">🧹 Limpiar Viajes</button>' : ''}
         </div>
       `;
       return;
@@ -505,7 +756,13 @@ class DriverTripManager {
           </button>
         </div>
       </div>
-    `).join('');
+    `).join('') + `
+      <div class="text-center mt-4">
+        <button onclick="window.cleanupTrips()" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium">
+          🧹 Limpiar Viajes Antiguos
+        </button>
+      </div>
+    `;
   }
 
   playNotificationSound() {
@@ -540,9 +797,9 @@ class DriverTripManager {
     }
     
     if (earningsElement) {
-      const current = parseInt(earningsElement.textContent.replace('$', '')) || 0;
+      const current = parseInt(earningsElement.textContent.replace('$', '').replace(',', '')) || 0;
       const newEarnings = current + Math.floor(Math.random() * 25) + 15;
-      earningsElement.textContent = `$${newEarnings}`;
+      earningsElement.textContent = `${newEarnings}`;
     }
   }
 
@@ -556,7 +813,7 @@ class DriverTripManager {
           hoursElement.textContent = `${diffHours.toFixed(1)}h`;
         }
       }
-    }, 60000); // Actualizar cada minuto
+    }, 60000);
   }
 
   stopStatsTimer() {
@@ -578,7 +835,6 @@ class DriverTripManager {
   manualRefresh() {
     if (this.isOnline) {
       this.showToast('🔄 Actualizando lista de viajes...', 'info');
-      // La actualización ya se hace automáticamente con Firebase
     } else {
       this.showToast('ℹ️ Conecta para ver viajes disponibles', 'info');
     }

@@ -1,193 +1,853 @@
 ---
-import "../styles/conductora.css";
+import "../styles/global.css";
+import "../styles/mapa.css";
 ---
 
 <!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content="LadysOnGo - App para Conductoras" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Conductora</title>
-    <!-- Preconnect para optimizar carga -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="dns-prefetch" href="https://www.google.com" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>LadysOnGo - Conductoras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      /* Variables CSS personalizadas */
+      :root {
+        --primary-pink: #dc2626;
+        --primary-pink-light: #fca5a5;
+        --primary-pink-dark: #991b1b;
+      }
+      
+      /* Override Tailwind colors */
+      .text-pink-600 { color: var(--primary-pink) !important; }
+      .bg-pink-600 { background-color: var(--primary-pink) !important; }
+      .border-pink-600 { border-color: var(--primary-pink) !important; }
+      .shadow-pink { box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4) !important; }
+      
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      #map {
+        height: 100vh;
+        width: 100%;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Sombra para la barra de búsqueda */
+      .search-shadow {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(8px);
+      }
+
+      /* Botones del mapa con sombra */
+      .map-button {
+        width: 48px;
+        height: 48px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: none;
+      }
+
+      .map-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      .map-button:active {
+        transform: translateY(0);
+      }
+
+      /* Botón rosa flotante - Conductora status */
+      .driver-status-button {
+        width: 64px;
+        height: 64px;
+        background: var(--primary-pink);
+        border-radius: 20px;
+        box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: none;
+        color: white;
+        font-weight: 600;
+        font-size: 10px;
+      }
+
+      .driver-status-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 24px rgba(220, 38, 38, 0.5);
+      }
+
+      .driver-status-button.online {
+        background: #059669;
+        box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
+      }
+
+      .driver-status-button.online:hover {
+        box-shadow: 0 8px 24px rgba(5, 150, 105, 0.5);
+      }
+
+      /* Overlay para el contenido sobre el mapa */
+      .map-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      .map-overlay > * {
+        pointer-events: auto;
+      }
+
+      /* Marcador de ubicación personalizado */
+      .my-location-marker {
+        background: transparent !important;
+        border: none !important;
+      }
+
+      .driver-marker {
+        background: transparent !important;
+        border: none !important;
+      }
+
+      /* Animación de pulso */
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.7;
+        }
+        100% {
+          transform: scale(1.4);
+          opacity: 0;
+        }
+      }
+
+      /* Panel de información de conductora */
+      .driver-info-panel {
+        background: white;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .driver-info-panel.collapsed {
+        transform: translateY(calc(100% - 60px));
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .map-button {
+          width: 44px;
+          height: 44px;
+        }
+        
+        .driver-status-button {
+          width: 56px;
+          height: 56px;
+        }
+        
+        .search-input {
+          font-size: 16px; /* Prevent zoom on iOS */
+        }
+      }
+
+      /* Loading spinner */
+      .loading-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid var(--primary-pink);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Status indicator */
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+      }
+
+      .status-dot.online {
+        background: #059669;
+        animation: pulse-dot 2s infinite;
+      }
+
+      .status-dot.offline {
+        background: #dc2626;
+        animation: pulse-dot 2s infinite;
+      }
+
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+    </style>
   </head>
-  <body>
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
-      <div class="loading-spinner-large"></div>
-      <p>Conectando...</p>
-    </div>
+  <body class="bg-gray-50 font-sans">
+    <!-- Mapa de fondo -->
+    <div id="map"></div>
 
-    <div class="container">
-      <div class="header-section">
-        <div class="card">
-          <div class="text-center">
-            <h1 class="app-title">🚗 LadysOnGo</h1>
-            <p class="app-subtitle">Panel de Conductoras</p>
-            <div class="status-indicator">
-              <span id="status-dot" class="status-dot offline"></span>
-              <span id="status-text">Desconectada</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Formulario de Registro de Conductora -->
-      <div id="driver-setup" class="setup-section">
-        <div class="card">
-          <h2 class="section-title">👤 Información de Conductora</h2>
-          <form id="driver-form" class="driver-form" novalidate>
-            <div class="form-group">
-              <label for="driver-name">Nombre completo:</label>
-              <input
-                type="text"
-                id="driver-name"
-                placeholder="Ej: Ana García López"
-                required
-                minlength="3"
-                maxlength="50"
-                autocomplete="name"
-              />
-              <div class="input-error" id="name-error"></div>
-            </div>
-
-            <div class="form-group">
-              <label for="driver-phone">Teléfono:</label>
-              <input
-                type="tel"
-                id="driver-phone"
-                placeholder="Ej: +591 7xxxxxxx"
-                required
-                pattern="^\+?[0-9\s\-\(\)]{8,15}$"
-                autocomplete="tel"
-              />
-              <div class="input-error" id="phone-error"></div>
-            </div>
-
-            <div class="form-group">
-              <label for="driver-vehicle">Información del vehículo:</label>
-              <input
-                type="text"
-                id="driver-vehicle"
-                placeholder="Ej: Toyota Corolla Blanco - ABC123"
-                required
-                minlength="10"
-                maxlength="100"
-              />
-              <div class="input-error" id="vehicle-error"></div>
-            </div>
-
-            <button
-              type="submit"
-              class="btn-primary w-full"
-              id="start-driver-btn"
-            >
-              <span class="btn-text">🚀 Empezar a Recibir Viajes</span>
-              <div class="btn-spinner" style="display: none;"></div>
+    <!-- Overlay con el contenido -->
+    <div class="map-overlay">
+      <!-- Header con información de conductora -->
+      <div class="absolute top-0 left-0 right-0 bg-white/95 backdrop-blur-sm search-shadow">
+        <div class="px-4 py-3">
+          <!-- Barra superior -->
+          <div class="flex items-center justify-between mb-3">
+            <button class="p-2" onclick="toggleDriverPanel()">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+              </svg>
             </button>
-          </form>
-        </div>
-      </div>
 
-      <!-- Dashboard de Conductora Activa -->
-      <div id="active-driver" class="active-section" style="display: none;">
-        <div class="card">
-          <h2 class="section-title">🟢 Conductora Activa</h2>
-          <div class="driver-info">
-            <div class="info-row">
-              <strong>👤 Nombre:</strong>
-              <span id="active-driver-name"></span>
+            <div class="flex-1 text-center">
+              <div class="inline-block w-32 h-12">
+                <img
+                  src="/images/logo_sin_fondo.png"
+                  alt="Lady's On Go"
+                  class="h-full w-full object-contain"
+                  onerror="this.parentElement.innerHTML='<div class=\'logo-placeholder\'>LADYS ON GO</div>'"
+                />
+              </div>
             </div>
-            <div class="info-row">
-              <strong>📱 Teléfono:</strong>
-              <span id="active-driver-phone"></span>
-            </div>
-            <div class="info-row">
-              <strong>🚗 Vehículo:</strong>
-              <span id="active-driver-vehicle"></span>
-            </div>
-            <div class="info-row">
-              <strong>📍 Ubicación:</strong>
-              <span id="driver-location"></span>
+
+            <!-- Status indicator -->
+            <div class="flex items-center">
+              <span class="status-dot offline" id="driverStatus"></span>
+              <span class="text-xs font-medium" id="statusText">Desconectada</span>
             </div>
           </div>
 
-          <div class="action-buttons">
-            <button id="stop-listening" class="btn-secondary">
-              ⏹️ Dejar de Recibir Viajes
-            </button>
-            <button id="refresh-rides" class="btn-primary">
-              🔄 Actualizar Viajes
-            </button>
-          </div>
-        </div>
-
-        <!-- Estadísticas -->
-        <div class="card">
-          <h3 class="stats-title">📊 Estadísticas del Día</h3>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-number" id="trips-completed">0</div>
-              <div class="stat-label">Viajes Completados</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-number" id="earnings-today">$0</div>
-              <div class="stat-label">Ganancias Hoy</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-number" id="hours-online">0h</div>
-              <div class="stat-label">Tiempo Online</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Lista de Viajes Disponibles -->
-        <div class="card">
-          <div class="rides-header">
-            <h3 class="section-title">🔍 Viajes Disponibles</h3>
-            <div class="search-indicator">
-              <div
-                class="loading-spinner"
-                id="search-spinner"
-                style="display: none;"
+          <!-- Info de conductora -->
+          <div class="bg-gray-100 rounded-lg p-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-pink-600 rounded-full flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <div class="font-semibold text-gray-900" id="driverName">Conductora</div>
+                  <div class="text-sm text-gray-600" id="driverVehicle">Vehículo no registrado</div>
+                </div>
+              </div>
+              <button 
+                class="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium"
+                onclick="toggleDriverStatus()"
+                id="toggleStatusBtn"
               >
-              </div>
-              <span id="last-update">Actualizando...</span>
+                Conectar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controles del mapa (lado derecho) -->
+      <div class="absolute right-4 top-1/2 transform -translate-y-1/2 space-y-3">
+        <!-- Zoom in -->
+        <button class="map-button" onclick="zoomIn()">
+          <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+        </button>
+
+        <!-- Zoom out -->
+        <button class="map-button" onclick="zoomOut()">
+          <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+          </svg>
+        </button>
+
+        <!-- Mi ubicación -->
+        <button class="map-button" onclick="centerToMyLocation()">
+          <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+
+        <!-- Actualizar viajes -->
+        <button class="map-button" onclick="refreshRides()" id="refreshBtn">
+          <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Botón de estado de conductora -->
+      <button 
+        class="driver-status-button absolute right-4 bottom-24" 
+        onclick="toggleDriverStatus()"
+        id="driverStatusFab"
+      >
+        <svg class="w-6 h-6 mb-1" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path>
+          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"></path>
+        </svg>
+        <span id="statusFabText">OFF</span>
+      </button>
+
+      <!-- Panel de información deslizable -->
+      <div class="absolute bottom-16 left-0 right-0 driver-info-panel collapsed" id="driverPanel">
+        <div class="p-4">
+          <!-- Handle para arrastrar -->
+          <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+          
+          <!-- Estadísticas -->
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="text-center">
+              <div class="text-2xl font-bold text-pink-600" id="tripsToday">0</div>
+              <div class="text-xs text-gray-600">Viajes Hoy</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl font-bold text-green-600" id="earningsToday">$0</div>
+              <div class="text-xs text-gray-600">Ganancias</div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl font-bold text-blue-600" id="onlineTime">0h</div>
+              <div class="text-xs text-gray-600">Tiempo Online</div>
             </div>
           </div>
 
-          <div id="rides-container" class="rides-list">
-            <div id="no-rides" class="no-rides">
-              <div class="empty-state">
-                <div class="empty-icon">🕐</div>
+          <!-- Viajes disponibles -->
+          <div class="mb-4">
+            <h3 class="font-semibold text-gray-900 mb-2">Viajes Disponibles</h3>
+            <div id="availableRides" class="space-y-2">
+              <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
                 <p>No hay viajes disponibles</p>
-                <small>Los nuevos viajes aparecerán aquí automáticamente</small>
+                <p class="text-sm">Conecta para recibir solicitudes</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Vista de Viaje en Progreso -->
-      <div id="trip-in-progress" class="trip-section" style="display: none;">
-        <div class="card">
-          <div class="trip-header">
-            <h2 class="section-title">🚗 Viaje en Progreso</h2>
-            <div class="trip-status">En camino hacia la pasajera</div>
-          </div>
-
-          <div id="trip-details" class="trip-details">
-            <!-- Se llenará dinámicamente -->
-          </div>
+      <!-- Navegación inferior - Solo Mapa -->
+      <nav class="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div class="flex justify-center py-3">
+          <button class="flex flex-col items-center p-2 text-pink-600">
+            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+            </svg>
+            <span class="text-xs font-medium">Mapa</span>
+          </button>
         </div>
-      </div>
+      </nav>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="toast-container"></div>
-    <script type="module" src="/conductora.js"></script>
+    <script type="module">
+      // Configuración y variables globales
+      let map;
+      let currentLocationMarker = null;
+      let driverMarkers = [];
+      let rideMarkers = [];
+      let isDriverOnline = false;
+      let driverStats = {
+        tripsToday: 0,
+        earningsToday: 0,
+        onlineTime: 0,
+        startTime: null
+      };
+
+      // Inicializar el mapa
+      function initMap() {
+        map = L.map('map', {
+          zoomControl: false // Disable default zoom control
+        }).setView([-17.783333, -63.182222], 13); // Santa Cruz de la Sierra
+
+        // Añadir capa de mapa
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Centrar en ubicación después de cargar
+        setTimeout(() => {
+          centerToMyLocation();
+        }, 1000);
+      }
+
+      // Funciones de zoom
+      window.zoomIn = function() {
+        map.zoomIn();
+      }
+
+      window.zoomOut = function() {
+        map.zoomOut();
+      }
+
+      // Función para centrar el mapa en la ubicación del usuario
+      window.centerToMyLocation = function() {
+        if (!navigator.geolocation) {
+          alert('Tu navegador no soporta geolocalización');
+          return;
+        }
+
+        const options = {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000
+        };
+
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+
+            console.log(`Ubicación obtenida: ${lat}, ${lng} (precisión: ${accuracy}m)`);
+
+            map.setView([lat, lng], 16);
+
+            if (currentLocationMarker) {
+              map.removeLayer(currentLocationMarker);
+            }
+
+            // Icono de conductora personalizado
+            const driverIcon = L.divIcon({
+              html: `
+                <div style="
+                  width: 24px;
+                  height: 24px;
+                  background: ${isDriverOnline ? '#059669' : '#dc2626'};
+                  border: 3px solid white;
+                  border-radius: 50%;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                  position: relative;
+                ">
+                  <div style="
+                    position: absolute;
+                    top: -12px;
+                    left: -12px;
+                    width: 48px;
+                    height: 48px;
+                    background: ${isDriverOnline ? 'rgba(5, 150, 105, 0.2)' : 'rgba(220, 38, 38, 0.2)'};
+                    border-radius: 50%;
+                    animation: pulse 2s infinite;
+                  "></div>
+                </div>
+              `,
+              className: 'driver-marker',
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            });
+
+            currentLocationMarker = L.marker([lat, lng], {
+              icon: driverIcon
+            }).addTo(map)
+            .bindPopup(`
+              <div style="text-align: center;">
+                <strong>🚗 Tu ubicación</strong><br>
+                <small>Estado: ${isDriverOnline ? 'En línea' : 'Desconectada'}</small><br>
+                <small>Precisión: ~${Math.round(accuracy)}m</small>
+              </div>
+            `);
+
+            // Si está online, simular viajes cercanos
+            if (isDriverOnline) {
+              simulateNearbyRides(lat, lng);
+            }
+          },
+          function(error) {
+            let errorMessage = '';
+            switch(error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage = 'Acceso a la ubicación denegado.';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage = 'Información de ubicación no disponible.';
+                break;
+              case error.TIMEOUT:
+                errorMessage = 'Tiempo agotado al obtener la ubicación.';
+                break;
+              default:
+                errorMessage = 'Error desconocido al obtener la ubicación.';
+                break;
+            }
+            console.error('Error de geolocalización:', error);
+            alert(errorMessage);
+          },
+          options
+        );
+      }
+
+      // Toggle estado de conductora
+      window.toggleDriverStatus = function() {
+        isDriverOnline = !isDriverOnline;
+        
+        const statusDot = document.getElementById('driverStatus');
+        const statusText = document.getElementById('statusText');
+        const toggleBtn = document.getElementById('toggleStatusBtn');
+        const statusFab = document.getElementById('driverStatusFab');
+        const statusFabText = document.getElementById('statusFabText');
+
+        if (isDriverOnline) {
+          // Online
+          statusDot.className = 'status-dot online';
+          statusText.textContent = 'En línea';
+          toggleBtn.textContent = 'Desconectar';
+          toggleBtn.className = 'px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium';
+          statusFab.className = 'driver-status-button absolute right-4 bottom-24 online';
+          statusFabText.textContent = 'ON';
+          
+          driverStats.startTime = new Date();
+          startStatsTimer();
+          
+          // Actualizar marcador de ubicación
+          centerToMyLocation();
+        } else {
+          // Offline
+          statusDot.className = 'status-dot offline';
+          statusText.textContent = 'Desconectada';
+          toggleBtn.textContent = 'Conectar';
+          toggleBtn.className = 'px-4 py-2 bg-pink-600 text-white rounded-lg text-sm font-medium';
+          statusFab.className = 'driver-status-button absolute right-4 bottom-24';
+          statusFabText.textContent = 'OFF';
+          
+          clearRideMarkers();
+          stopStatsTimer();
+          
+          // Actualizar marcador de ubicación
+          centerToMyLocation();
+        }
+      }
+
+      // Simular viajes cercanos
+      function simulateNearbyRides(centerLat, centerLng) {
+        clearRideMarkers();
+        
+        const rides = [];
+        for (let i = 0; i < 3; i++) {
+          const lat = centerLat + (Math.random() - 0.5) * 0.02;
+          const lng = centerLng + (Math.random() - 0.5) * 0.02;
+          
+          rides.push({
+            id: i + 1,
+            lat: lat,
+            lng: lng,
+            passenger: `Pasajera ${i + 1}`,
+            destination: `Destino ${i + 1}`,
+            fare: Math.round(15 + Math.random() * 25)
+          });
+        }
+
+        rides.forEach(ride => {
+          const rideIcon = L.divIcon({
+            html: `
+              <div style="
+                width: 20px;
+                height: 20px;
+                background: #fbbf24;
+                border: 2px solid white;
+                border-radius: 50%;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: bold;
+                color: white;
+              ">
+                ${ride.id}
+              </div>
+            `,
+            className: 'ride-marker',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+
+          const marker = L.marker([ride.lat, ride.lng], {
+            icon: rideIcon
+          }).addTo(map)
+          .bindPopup(`
+            <div style="text-align: center; min-width: 150px;">
+              <strong>👤 ${ride.passenger}</strong><br>
+              <small>📍 ${ride.destination}</small><br>
+              <small>💰 $${ride.fare}</small><br>
+              <button onclick="acceptRide(${ride.id})" style="
+                background: #dc2626; 
+                color: white; 
+                border: none; 
+                padding: 6px 12px; 
+                border-radius: 6px; 
+                margin-top: 8px;
+                cursor: pointer;
+              ">Aceptar Viaje</button>
+            </div>
+          `);
+
+          rideMarkers.push(marker);
+        });
+
+        updateAvailableRidesList(rides);
+      }
+
+      // Actualizar lista de viajes disponibles
+      function updateAvailableRidesList(rides) {
+        const container = document.getElementById('availableRides');
+        
+        if (rides.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+              <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <p>No hay viajes disponibles</p>
+              <p class="text-sm">Los viajes aparecerán aquí automáticamente</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = rides.map(ride => `
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <div class="font-medium text-gray-900">${ride.passenger}</div>
+                <div class="text-sm text-gray-600">${ride.destination}</div>
+                <div class="text-sm font-medium text-pink-600">$${ride.fare}</div>
+              </div>
+              <button 
+                onclick="acceptRide(${ride.id})" 
+                class="px-3 py-1 bg-pink-600 text-white rounded-md text-sm font-medium"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Aceptar viaje
+      window.acceptRide = function(rideId) {
+        alert(`Viaje ${rideId} aceptado! Dirigiéndote hacia la pasajera.`);
+        
+        // Actualizar estadísticas
+        driverStats.tripsToday += 1;
+        driverStats.earningsToday += Math.round(15 + Math.random() * 25);
+        updateStatsDisplay();
+        
+        // Simular nueva búsqueda después de 3 segundos
+        setTimeout(() => {
+          if (isDriverOnline && currentLocationMarker) {
+            const latlng = currentLocationMarker.getLatLng();
+            simulateNearbyRides(latlng.lat, latlng.lng);
+          }
+        }, 3000);
+      }
+
+      // Limpiar marcadores de viajes
+      function clearRideMarkers() {
+        rideMarkers.forEach(marker => {
+          map.removeLayer(marker);
+        });
+        rideMarkers = [];
+        
+        const container = document.getElementById('availableRides');
+        container.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p>No hay viajes disponibles</p>
+            <p class="text-sm">Conecta para recibir solicitudes</p>
+          </div>
+        `;
+      }
+
+      // Actualizar viajes
+      window.refreshRides = function() {
+        const btn = document.getElementById('refreshBtn');
+        const originalContent = btn.innerHTML;
+        
+        btn.innerHTML = '<div class="loading-spinner"></div>';
+        btn.disabled = true;
+        
+        setTimeout(() => {
+          if (isDriverOnline && currentLocationMarker) {
+            const latlng = currentLocationMarker.getLatLng();
+            simulateNearbyRides(latlng.lat, latlng.lng);
+          }
+          
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        }, 1500);
+      }
+
+      // Temporizador de estadísticas
+      let statsTimer = null;
+
+      function startStatsTimer() {
+        statsTimer = setInterval(() => {
+          if (driverStats.startTime) {
+            const now = new Date();
+            const diffMs = now - driverStats.startTime;
+            const diffHours = diffMs / (1000 * 60 * 60);
+            driverStats.onlineTime = diffHours;
+            updateStatsDisplay();
+          }
+        }, 10000); // Actualizar cada 10 segundos
+      }
+
+      function stopStatsTimer() {
+        if (statsTimer) {
+          clearInterval(statsTimer);
+          statsTimer = null;
+        }
+      }
+
+      function updateStatsDisplay() {
+        document.getElementById('tripsToday').textContent = driverStats.tripsToday;
+        document.getElementById('earningsToday').textContent = `${driverStats.earningsToday}`;
+        document.getElementById('onlineTime').textContent = `${driverStats.onlineTime.toFixed(1)}h`;
+      }
+
+      // Toggle panel de información
+      window.toggleDriverPanel = function() {
+        const panel = document.getElementById('driverPanel');
+        panel.classList.toggle('collapsed');
+      }
+
+      // Ajustar el tamaño del mapa cuando cambie el tamaño de la ventana
+      window.addEventListener('resize', function() {
+        if (map) {
+          map.invalidateSize();
+        }
+      });
+
+      // Inicializar app
+      document.addEventListener('DOMContentLoaded', function() {
+        initMap();
+        
+        // Configurar información inicial
+        document.getElementById('driverName').textContent = 'Ana García';
+        document.getElementById('driverVehicle').textContent = 'Toyota Corolla - ABC123';
+        
+        updateStatsDisplay();
+      });
+
+      // Manejo de gestos táctiles para el panel
+      let panelStartY = 0;
+      let panelCurrentY = 0;
+      let isPanelDragging = false;
+
+      const panel = document.getElementById('driverPanel');
+      
+      panel.addEventListener('touchstart', function(e) {
+        panelStartY = e.touches[0].clientY;
+        isPanelDragging = true;
+      });
+
+      panel.addEventListener('touchmove', function(e) {
+        if (!isPanelDragging) return;
+        
+        e.preventDefault();
+        panelCurrentY = e.touches[0].clientY - panelStartY;
+        
+        // Limitar el movimiento
+        if (panelCurrentY < -100) panelCurrentY = -100;
+        if (panelCurrentY > 100) panelCurrentY = 100;
+        
+        panel.style.transform = `translateY(calc(${panel.classList.contains('collapsed') ? '100% - 60px' : '0'} + ${panelCurrentY}px))`;
+      });
+
+      panel.addEventListener('touchend', function(e) {
+        if (!isPanelDragging) return;
+        isPanelDragging = false;
+        
+        // Determinar si expandir o colapsar
+        if (panelCurrentY > 50) {
+          panel.classList.add('collapsed');
+        } else if (panelCurrentY < -50) {
+          panel.classList.remove('collapsed');
+        }
+        
+        panel.style.transform = '';
+        panelCurrentY = 0;
+      });
+
+      // Función de ayuda (placeholder)
+      window.showHelp = function() {
+        alert('Ayuda para conductoras:\n\n1. Presiona "Conectar" para recibir viajes\n2. Los viajes aparecerán en el mapa y en la lista\n3. Presiona "Aceptar" para tomar un viaje\n4. Usa los controles del mapa para navegar');
+      }
+
+      // Simular notificaciones de nuevos viajes
+      function simulateRideNotifications() {
+        if (!isDriverOnline) return;
+        
+        // Cada 30-60 segundos simular un nuevo viaje
+        const delay = 30000 + Math.random() * 30000;
+        
+        setTimeout(() => {
+          if (isDriverOnline && currentLocationMarker) {
+            const latlng = currentLocationMarker.getLatLng();
+            simulateNearbyRides(latlng.lat, latlng.lng);
+            
+            // Mostrar notificación
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('¡Nuevo viaje disponible!', {
+                body: 'Tienes una nueva solicitud de viaje cerca de ti.',
+                icon: '/images/logo_sin_fondo.png'
+              });
+            }
+          }
+          
+          simulateRideNotifications(); // Continuar el ciclo
+        }, delay);
+      }
+
+      // Solicitar permisos de notificación
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+
+      // Iniciar simulación de notificaciones
+      setTimeout(simulateRideNotifications, 5000);
+
+      console.log('🚗 LadysOnGo - Mapa para Conductoras inicializado');
+    </script>
   </body>
 </html>

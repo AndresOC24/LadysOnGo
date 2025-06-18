@@ -1,88 +1,91 @@
-       // Funcionalidad del menú hamburguesa
-        const menuButton = document.getElementById('menuButton');
-        const slideMenu = document.getElementById('slideMenu');
-        const menuOverlay = document.getElementById('menuOverlay');
+// public/javascript.js - Funcionalidad básica del menú
+// Funcionalidad del menú hamburguesa
+const menuButton = document.getElementById('menuButton');
+const slideMenu = document.getElementById('slideMenu');
+const menuOverlay = document.getElementById('menuOverlay');
 
-        function openMenu() {
-            slideMenu.classList.add('active');
-            menuOverlay.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
+function openMenu() {
+    if (slideMenu && menuOverlay) {
+        slideMenu.classList.add('active');
+        menuOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
 
-        function closeMenu() {
-            slideMenu.classList.remove('active');
-            menuOverlay.classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
+function closeMenu() {
+    if (slideMenu && menuOverlay) {
+        slideMenu.classList.remove('active');
+        menuOverlay.classList.remove('active');
+        document.body.style.overflow = 'auto';
+    }
+}
 
-        menuButton.addEventListener('click', openMenu);
-        menuOverlay.addEventListener('click', closeMenu);
+if (menuButton) menuButton.addEventListener('click', openMenu);
+if (menuOverlay) menuOverlay.addEventListener('click', closeMenu);
 
-        // Cerrar menú con tecla Escape
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && slideMenu.classList.contains('active')) {
-                closeMenu();
-            }
-        });
+// Cerrar menú con tecla Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && slideMenu?.classList.contains('active')) {
+        closeMenu();
+    }
+});
 
-        // Manejar click en los elementos del menú
-        const menuItems = document.querySelectorAll('.slide-menu a');
-        menuItems.forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                const text = this.querySelector('span').textContent;
-                
-                // Aquí puedes agregar la lógica para navegar a cada sección
-                console.log('Navegando a:', text);
-                
-                // Cerrar menú después de seleccionar
-                closeMenu();
-                
-                // Mostrar mensaje temporal (puedes quitar esto en producción)
-                const notification = document.createElement('div');
-                notification.className = 'fixed top-4 right-4 bg-pink-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-                notification.textContent = `Abriendo: ${text}`;
-                document.body.appendChild(notification);
-                
-                setTimeout(() => {
-                    notification.remove();
-                }, 2000);
-            });
-        });
+// Manejar click en los elementos del menú
+const menuItems = document.querySelectorAll('.slide-menu a');
+menuItems.forEach(item => {
+    item.addEventListener('click', function(e) {
+        e.preventDefault();
+        const text = this.querySelector('span')?.textContent;
+        
+        console.log('Navegando a:', text);
+        closeMenu();
+        
+        // Mostrar mensaje temporal
+        showToast(`Abriendo: ${text}`, 'info');
+    });
+});
 
-        // Prevenir el zoom en iOS cuando se hace foco en el input
-        document.addEventListener('gesturestart', function (e) {
-            e.preventDefault();
-        });
+// Función auxiliar para mostrar notificaciones
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500'
+    };
+    
+    toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg z-50 transform transition-all duration-300`;
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-x-full');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
-        // Ajustar altura para dispositivos móviles
-        function setViewportHeight() {
-            const vh = window.innerHeight * 0.01;
-            document.documentElement.style.setProperty('--vh', `${vh}px`);
-        }
+// Prevenir el zoom en iOS cuando se hace foco en el input
+document.addEventListener('gesturestart', function (e) {
+    e.preventDefault();
+});
 
-        setViewportHeight();
-        window.addEventListener('resize', setViewportHeight);
+// Ajustar altura para dispositivos móviles
+function setViewportHeight() {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
 
-        // Manejar click en los botones de navegación
-        const navButtons = document.querySelectorAll('nav button');
-        navButtons.forEach(button => {
-            button.addEventListener('click', function () {
-                navButtons.forEach(btn => btn.classList.remove('text-pink-500'));
-                this.classList.add('text-pink-500');
-            });
-        });
+setViewportHeight();
+window.addEventListener('resize', setViewportHeight);
 
-        // Manejar el botón de solicitar viaje
-        // const solicitarViaje = document.querySelector('a[href="/mapa"]');
-        // if (solicitarViaje) {
-        //     solicitarViaje.addEventListener('click', function (e) {
-        //         e.preventDefault();
-        //         const destino = document.querySelector('input').value;
-        //         if (destino.trim() === '') {
-        //             alert('Por favor ingresa un destino');
-        //         } else {
-        //             alert(`Solicitando viaje a: ${destino}`);
-        //         }
-        //     });
-        // }
+// Manejar click en los botones de navegación
+const navButtons = document.querySelectorAll('nav button');
+navButtons.forEach(button => {
+    button.addEventListener('click', function () {
+        navButtons.forEach(btn => btn.classList.remove('text-pink-500'));
+        this.classList.add('text-pink-500');
+    });
+});
+
+console.log('✅ JavaScript básico cargado');

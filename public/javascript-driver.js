@@ -1,4 +1,4 @@
-// public/javascript-driver.js - Sistema de viajes para conductoras
+// public/javascript-driver.js - Sistema de viajes para conductoras (CORREGIDO)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
 import { getDatabase, ref, onValue, off, update } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
 
@@ -19,15 +19,7 @@ const database = getDatabase(app);
 // Variables globales del mapa
 let map;
 let currentLocationMarker = null;
-let driverMarkers = [];
-let rideMarkers = [];
 let isDriverOnline = false;
-let driverStats = {
-  tripsToday: 0,
-  earningsToday: 0,
-  onlineTime: 0,
-  startTime: null
-};
 
 // Driver Trip Manager
 class DriverTripManager {
@@ -47,6 +39,7 @@ class DriverTripManager {
     this.setupEventListeners();
     this.setupNotificationPermission();
     console.log('🚗 Sistema de conductora inicializado');
+    console.log('📱 Driver ID:', this.driverId);
   }
 
   generateDriverId() {
@@ -54,6 +47,12 @@ class DriverTripManager {
   }
 
   initMap() {
+    // Verificar si Leaflet está disponible
+    if (typeof L === 'undefined') {
+      console.error('❌ Leaflet no está cargado');
+      return;
+    }
+
     map = L.map('map', {
       zoomControl: false
     }).setView([-17.783333, -63.182222], 13); // Santa Cruz de la Sierra
@@ -83,8 +82,12 @@ class DriverTripManager {
 
     // Funciones globales para los botones del mapa
     window.toggleDriverStatus = () => this.toggleOnlineStatus();
-    window.zoomIn = () => map.zoomIn();
-    window.zoomOut = () => map.zoomOut();
+    window.zoomIn = () => {
+      if (map) map.zoomIn();
+    };
+    window.zoomOut = () => {
+      if (map) map.zoomOut();
+    };
     window.centerToMyLocation = () => this.centerToMyLocation();
     window.refreshRides = () => this.manualRefresh();
   }
@@ -118,15 +121,17 @@ class DriverTripManager {
       const driverLocation = this.generateSimulatedLocation();
       
       // Actualizar mapa con ubicación de conductora
-      map.setView([driverLocation.lat, driverLocation.lng], 15);
-      
-      if (currentLocationMarker) {
-        map.removeLayer(currentLocationMarker);
+      if (map) {
+        map.setView([driverLocation.lat, driverLocation.lng], 15);
+        
+        if (currentLocationMarker) {
+          map.removeLayer(currentLocationMarker);
+        }
+        
+        currentLocationMarker = L.marker([driverLocation.lat, driverLocation.lng], {
+          icon: this.createDriverIcon()
+        }).addTo(map).bindPopup('🚗 Tu ubicación');
       }
-      
-      currentLocationMarker = L.marker([driverLocation.lat, driverLocation.lng], {
-        icon: this.createDriverIcon()
-      }).addTo(map).bindPopup('🚗 Tu ubicación');
 
       const driverData = {
         id: this.driverId,
@@ -151,7 +156,8 @@ class DriverTripManager {
       
       console.log('✅ Conductora online en:', driverLocation);
     } catch (error) {
-      throw error;
+      console.error('❌ Error en goOnline:', error);
+      this.showToast('❌ Error al conectar', 'error');
     }
   }
 
@@ -168,7 +174,7 @@ class DriverTripManager {
       this.stopStatsTimer();
       this.updateUI();
       
-      if (currentLocationMarker) {
+      if (currentLocationMarker && map) {
         map.removeLayer(currentLocationMarker);
         currentLocationMarker = null;
       }
@@ -176,7 +182,7 @@ class DriverTripManager {
       this.showToast('⏹️ Desconectada', 'info');
       console.log('⏹️ Conductora offline');
     } catch (error) {
-      throw error;
+      console.error('❌ Error en goOffline:', error);
     }
   }
 
@@ -239,6 +245,7 @@ class DriverTripManager {
   }
 
   startListeningForTrips() {
+    console.log('📡 Iniciando escucha de viajes...');
     const tripsRef = ref(database, 'trips');
     
     this.tripsListener = onValue(tripsRef, (snapshot) => {
@@ -255,7 +262,7 @@ class DriverTripManager {
         });
       }
       
-      console.log('📱 Viajes disponibles:', trips.length);
+      console.log('📱 Viajes encontrados:', trips.length);
       
       // Detectar nuevos viajes
       const newTrips = trips.filter(trip => 
@@ -263,16 +270,23 @@ class DriverTripManager {
       );
 
       if (newTrips.length > 0) {
-        newTrips.forEach(trip => this.showTripNotification(trip));
+        console.log('🆕 Nuevos viajes detectados:', newTrips.length);
+        newTrips.forEach(trip => {
+          console.log('📢 Mostrando notificación para viaje:', trip.id);
+          this.showTripNotification(trip);
+        });
       }
 
       this.availableTrips = trips;
       this.updateTripsDisplay();
+    }, (error) => {
+      console.error('❌ Error escuchando viajes:', error);
     });
   }
 
   stopListeningForTrips() {
     if (this.tripsListener) {
+      console.log('⏹️ Deteniendo escucha de viajes...');
       off(ref(database, 'trips'), 'value', this.tripsListener);
       this.tripsListener = null;
     }
@@ -281,10 +295,12 @@ class DriverTripManager {
   }
 
   showTripNotification(trip) {
+    console.log('🔔 Mostrando notificación para viaje:', trip);
+    
     // Notificación del navegador
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('🚗 ¡Nuevo viaje disponible!', {
-        body: `Viaje hacia: ${trip.destination}\nTarifa estimada: ${trip.estimatedFare}`,
+        body: `Viaje hacia: ${trip.destination}\nTarifa estimada: $${trip.estimatedFare}`,
         icon: '/images/logo_sin_fondo.png',
         tag: 'trip-' + trip.id,
         requireInteraction: true
@@ -293,21 +309,27 @@ class DriverTripManager {
       notification.onclick = () => {
         this.showTripModal(trip);
         notification.close();
+        window.focus();
       };
 
-      setTimeout(() => notification.close(), 10000);
+      setTimeout(() => notification.close(), 15000);
     }
 
-    // Modal en la aplicación
-    this.showTripModal(trip);
+    // Modal en la aplicación - SIEMPRE mostrar
+    setTimeout(() => {
+      this.showTripModal(trip);
+    }, 500);
+    
     this.playNotificationSound();
   }
 
   showTripModal(trip) {
+    console.log('📱 Mostrando modal para viaje:', trip.id);
     const distance = this.calculateDistance();
     const timeAgo = this.getTimeAgo(trip.timestamp);
 
-    this.showModal(`
+    // Crear el modal con funciones inline para evitar problemas de scope
+    const modalHTML = `
       <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
         <div class="text-center mb-4">
           <div class="w-16 h-16 bg-pink-500 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -330,7 +352,7 @@ class DriverTripManager {
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-gray-50 rounded-lg p-3 text-center">
               <p class="text-sm text-gray-600">💰 Tarifa</p>
-              <p class="font-bold text-lg text-green-600">${trip.estimatedFare}</p>
+              <p class="font-bold text-lg text-green-600">$${trip.estimatedFare}</p>
             </div>
             <div class="bg-gray-50 rounded-lg p-3 text-center">
               <p class="text-sm text-gray-600">📏 Distancia</p>
@@ -346,13 +368,15 @@ class DriverTripManager {
         
         <div class="flex space-x-3">
           <button 
-            onclick="driverTrip.acceptTrip('${trip.id}')" 
+            id="accept-trip-btn" 
+            data-trip-id="${trip.id}"
             class="flex-1 bg-green-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-600 transition-colors"
           >
             ✅ Aceptar
           </button>
           <button 
-            onclick="driverTrip.declineTrip('${trip.id}')" 
+            id="decline-trip-btn"
+            data-trip-id="${trip.id}" 
             class="flex-1 bg-red-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-red-600 transition-colors"
           >
             ❌ Rechazar
@@ -363,10 +387,35 @@ class DriverTripManager {
           Esta solicitud expirará automáticamente en 30 segundos
         </p>
       </div>
-    `, 30000);
+    `;
+
+    this.showModal(modalHTML, 30000);
+
+    // Agregar event listeners después de crear el modal
+    setTimeout(() => {
+      const acceptBtn = document.getElementById('accept-trip-btn');
+      const declineBtn = document.getElementById('decline-trip-btn');
+
+      if (acceptBtn) {
+        acceptBtn.addEventListener('click', () => {
+          const tripId = acceptBtn.getAttribute('data-trip-id');
+          console.log('✅ Intentando aceptar viaje:', tripId);
+          this.acceptTrip(tripId);
+        });
+      }
+
+      if (declineBtn) {
+        declineBtn.addEventListener('click', () => {
+          const tripId = declineBtn.getAttribute('data-trip-id');
+          console.log('❌ Rechazando viaje:', tripId);
+          this.declineTrip(tripId);
+        });
+      }
+    }, 100);
   }
 
   async acceptTrip(tripId) {
+    console.log('✅ Iniciando aceptación de viaje:', tripId);
     try {
       this.hideModal();
       this.showToast('Aceptando viaje...', 'info');
@@ -385,22 +434,23 @@ class DriverTripManager {
         [`trips/${tripId}/acceptedAt`]: Date.now()
       };
 
+      console.log('📝 Actualizando Firebase con:', updates);
       await update(ref(database), updates);
       
       this.showToast('🎉 ¡Viaje aceptado!', 'success');
       this.updateStats();
       
-      console.log('✅ Viaje aceptado:', tripId);
+      console.log('✅ Viaje aceptado exitosamente:', tripId);
     } catch (error) {
       console.error('❌ Error aceptando viaje:', error);
-      this.showToast('❌ Error al aceptar viaje', 'error');
+      this.showToast('❌ Error al aceptar viaje: ' + error.message, 'error');
     }
   }
 
   declineTrip(tripId) {
+    console.log('❌ Rechazando viaje:', tripId);
     this.hideModal();
     this.showToast('❌ Viaje rechazado', 'info');
-    console.log('❌ Viaje rechazado:', tripId);
   }
 
   calculateDistance() {
@@ -441,14 +491,14 @@ class DriverTripManager {
             <p class="text-sm text-gray-600">${trip.destination}</p>
           </div>
           <span class="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
-            ${trip.estimatedFare}
+            $${trip.estimatedFare}
           </span>
         </div>
         
         <div class="flex justify-between items-center">
           <span class="text-xs text-gray-500">${this.getTimeAgo(trip.timestamp)}</span>
           <button 
-            onclick="driverTrip.showTripModal(${JSON.stringify(trip).replace(/"/g, '&quot;')})"
+            onclick="window.driverTrip.showTripModal(${JSON.stringify(trip).replace(/"/g, '&quot;')})"
             class="bg-pink-500 text-white px-3 py-1 rounded text-sm font-medium hover:bg-pink-600 transition-colors"
           >
             Ver Detalles
@@ -490,13 +540,10 @@ class DriverTripManager {
     }
     
     if (earningsElement) {
-      const current = parseInt(earningsElement.textContent.replace(', ')) || 0;
+      const current = parseInt(earningsElement.textContent.replace('$', '')) || 0;
       const newEarnings = current + Math.floor(Math.random() * 25) + 15;
-      earningsElement.textContent = `${newEarnings}`;
+      earningsElement.textContent = `$${newEarnings}`;
     }
-
-    driverStats.tripsToday = parseInt(tripsElement?.textContent) || 0;
-    driverStats.earningsToday = parseInt(earningsElement?.textContent.replace(', ')) || 0;
   }
 
   startStatsTimer() {
@@ -508,7 +555,6 @@ class DriverTripManager {
         if (hoursElement) {
           hoursElement.textContent = `${diffHours.toFixed(1)}h`;
         }
-        driverStats.onlineTime = diffHours;
       }
     }, 60000); // Actualizar cada minuto
   }
@@ -521,7 +567,7 @@ class DriverTripManager {
   }
 
   centerToMyLocation() {
-    if (currentLocationMarker) {
+    if (currentLocationMarker && map) {
       const latlng = currentLocationMarker.getLatLng();
       map.setView(latlng, 16);
     } else {
@@ -539,18 +585,24 @@ class DriverTripManager {
   }
 
   showModal(content, autoCloseMs = null) {
+    console.log('📱 Creando modal...');
     const existingModal = document.getElementById('trip-modal');
-    if (existingModal) existingModal.remove();
+    if (existingModal) {
+      console.log('🗑️ Eliminando modal existente');
+      existingModal.remove();
+    }
 
     const modal = document.createElement('div');
     modal.id = 'trip-modal';
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
     modal.innerHTML = content;
     document.body.appendChild(modal);
+    console.log('✅ Modal creado y agregado al DOM');
 
     if (autoCloseMs) {
       setTimeout(() => {
         if (document.getElementById('trip-modal')) {
+          console.log('⏰ Auto-cerrando modal por timeout');
           this.hideModal();
         }
       }, autoCloseMs);
@@ -558,8 +610,12 @@ class DriverTripManager {
   }
 
   hideModal() {
+    console.log('❌ Ocultando modal...');
     const modal = document.getElementById('trip-modal');
-    if (modal) modal.remove();
+    if (modal) {
+      modal.remove();
+      console.log('✅ Modal eliminado');
+    }
   }
 
   showToast(message, type = 'info') {
@@ -586,6 +642,23 @@ class DriverTripManager {
 const driverTrip = new DriverTripManager();
 window.driverTrip = driverTrip;
 
+// Función global para debug
+window.testModal = () => {
+  console.log('🧪 Probando modal...');
+  driverTrip.showModal(`
+    <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
+      <h3 class="text-lg font-bold mb-4">Modal de Prueba</h3>
+      <p>Este es un modal de prueba para verificar que funciona.</p>
+      <button onclick="window.driverTrip.hideModal()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded">
+        Cerrar
+      </button>
+    </div>
+  `);
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 Inicializando sistema de conductora...');
   driverTrip.init();
 });
+
+console.log('📜 JavaScript de conductora cargado');

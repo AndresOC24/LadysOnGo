@@ -115,3 +115,142 @@ input::placeholder {
     left: -75%;
   }
 }
+
+
+/* Estilos adicionales para modales de Firebase - Agregar al final de global.css */
+
+/* Modal de viajes */
+#trip-modal {
+  animation: fadeIn 0.3s ease-out;
+}
+
+#trip-modal > div {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Botones del modal */
+#trip-modal button {
+  transition: all 0.2s ease;
+}
+
+#trip-modal button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#trip-modal button:active {
+  transform: translateY(0);
+}
+
+/* Loading spinner personalizado */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status dots para conductoras */
+.status-dot {
+  position: relative;
+}
+
+.status-dot.online::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s infinite;
+}
+
+.status-dot.offline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Toasts mejorados */
+.fixed.top-4.right-4 {
+  z-index: 9999 !important;
+}
+
+/* Asegurar que los modales estén por encima de todo */
+#trip-modal {
+  z-index: 9998 !important;
+}
+
+/* Responsive para modales */
+@media (max-width: 640px) {
+  #trip-modal .max-w-md {
+    max-width: 90vw;
+    margin: 0 auto;
+  }
+  
+  #trip-modal .max-w-sm {
+    max-width: 85vw;
+    margin: 0 auto;
+  }
+}
+
+/* Debug helper para verificar que los elementos existen */
+.debug-border {
+  border: 2px solid red !important;
+}
+
+/* Estilos para mejorar la visibilidad del modal */
+#trip-modal {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+#trip-modal .bg-white {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

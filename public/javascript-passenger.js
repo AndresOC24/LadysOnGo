@@ -1,4 +1,4 @@
-// public/javascript-passenger.js - Sistema de viajes para pasajeras
+// public/javascript-passenger.js - Sistema de viajes para pasajeras (CORREGIDO)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
 import { getDatabase, ref, push, onValue, off, update } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
 
@@ -41,15 +41,19 @@ class PassengerTripManager {
     const menuOverlay = document.getElementById('menuOverlay');
 
     const openMenu = () => {
-      slideMenu.classList.add('active');
-      menuOverlay.classList.add('active');
-      document.body.style.overflow = 'hidden';
+      if (slideMenu && menuOverlay) {
+        slideMenu.classList.add('active');
+        menuOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
     };
 
     const closeMenu = () => {
-      slideMenu.classList.remove('active');
-      menuOverlay.classList.remove('active');
-      document.body.style.overflow = 'auto';
+      if (slideMenu && menuOverlay) {
+        slideMenu.classList.remove('active');
+        menuOverlay.classList.remove('active');
+        document.body.style.overflow = 'auto';
+      }
     };
 
     if (menuButton) menuButton.addEventListener('click', openMenu);
@@ -71,15 +75,24 @@ class PassengerTripManager {
         console.log('Navegando a:', text);
         closeMenu();
         
-        // Mostrar mensaje temporal
-        this.showToast(`Abriendo: ${text}`, 'info');
+        // Mostrar mensaje temporal - usar función global
+        if (window.showToast) {
+          window.showToast(`Abriendo: ${text}`, 'info');
+        }
       });
     });
   }
 
   async initMap() {
     try {
+      // Verificar si Leaflet está disponible
+      if (typeof L === 'undefined') {
+        console.error('❌ Leaflet no está cargado');
+        return;
+      }
+
       const userLocation = await this.getCurrentLocation();
+      console.log('📍 Ubicación de pasajera:', userLocation);
       
       this.map = L.map('map').setView([userLocation.lat, userLocation.lng], 15);
       
@@ -91,7 +104,7 @@ class PassengerTripManager {
         icon: this.createPassengerIcon()
       }).addTo(this.map).bindPopup('📍 Tu ubicación');
 
-      console.log('🗺️ Mapa inicializado');
+      console.log('🗺️ Mapa inicializado para pasajera');
     } catch (error) {
       console.error('❌ Error inicializando mapa:', error);
     }
@@ -142,6 +155,7 @@ class PassengerTripManager {
     }
 
     try {
+      console.log('📝 Solicitando viaje a:', destino);
       this.showLoadingModal('Solicitando viaje...');
 
       const passengerLocation = await this.getCurrentLocation();
@@ -160,8 +174,11 @@ class PassengerTripManager {
         estimatedFare: Math.floor(Math.random() * 25) + 15
       };
 
+      console.log('📊 Datos del viaje:', tripData);
       const newTripRef = await push(ref(database, 'trips'), tripData);
       this.currentTrip = newTripRef.key;
+      
+      console.log('✅ Viaje creado con ID:', this.currentTrip);
       
       this.hideLoadingModal();
       this.showWaitingModal(destino);
@@ -172,32 +189,44 @@ class PassengerTripManager {
     } catch (error) {
       console.error('❌ Error solicitando viaje:', error);
       this.hideLoadingModal();
-      this.showToast('❌ Error al solicitar viaje', 'error');
+      this.showToast('❌ Error al solicitar viaje: ' + error.message, 'error');
     }
   }
 
   startListeningToTrip(tripId) {
+    console.log('👂 Escuchando estado del viaje:', tripId);
     const tripRef = ref(database, `trips/${tripId}`);
     
     this.tripListener = onValue(tripRef, (snapshot) => {
       if (snapshot.exists()) {
         const trip = { id: tripId, ...snapshot.val() };
+        console.log('📱 Estado del viaje actualizado:', trip.status);
         this.handleTripUpdate(trip);
+      } else {
+        console.log('❌ Viaje no existe o fue eliminado');
       }
+    }, (error) => {
+      console.error('❌ Error escuchando viaje:', error);
     });
   }
 
   handleTripUpdate(trip) {
-    console.log('📱 Estado del viaje:', trip.status);
+    console.log('🔄 Manejando actualización del viaje:', trip.status);
 
     switch (trip.status) {
+      case 'pending':
+        console.log('⏳ Viaje pendiente, esperando...');
+        break;
       case 'accepted':
+        console.log('✅ Viaje aceptado!');
         this.handleTripAccepted(trip);
         break;
       case 'completed':
+        console.log('🏁 Viaje completado');
         this.handleTripCompleted(trip);
         break;
       case 'cancelled':
+        console.log('❌ Viaje cancelado');
         this.handleTripCancelled(trip);
         break;
     }
@@ -212,6 +241,8 @@ class PassengerTripManager {
   }
 
   addDriverToMap(driverLocation) {
+    if (!this.map) return;
+
     if (this.driverMarker) {
       this.map.removeLayer(this.driverMarker);
     }
@@ -225,6 +256,8 @@ class PassengerTripManager {
   }
 
   showRouteToPassenger(driverLocation, passengerLocation) {
+    if (!this.map) return;
+
     if (this.routeLine) {
       this.map.removeLayer(this.routeLine);
     }
@@ -242,7 +275,7 @@ class PassengerTripManager {
   }
 
   showDriverInfo(driver) {
-    this.showModal(`
+    const modalHTML = `
       <div class="bg-white rounded-lg p-6 max-w-sm mx-auto">
         <div class="text-center mb-4">
           <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -269,28 +302,54 @@ class PassengerTripManager {
         </div>
         
         <div class="mt-6 space-y-2">
-          <button onclick="passengerTrip.callDriver()" class="w-full bg-green-500 text-white py-2 rounded-lg font-medium">
+          <button id="call-driver-btn" class="w-full bg-green-500 text-white py-2 rounded-lg font-medium">
             📞 Llamar Conductora
           </button>
-          <button onclick="passengerTrip.cancelCurrentTrip()" class="w-full bg-red-500 text-white py-2 rounded-lg font-medium">
+          <button id="cancel-trip-btn" class="w-full bg-red-500 text-white py-2 rounded-lg font-medium">
             ❌ Cancelar Viaje
           </button>
         </div>
       </div>
-    `);
+    `;
+
+    this.showModal(modalHTML);
+
+    // Agregar event listeners
+    setTimeout(() => {
+      const callBtn = document.getElementById('call-driver-btn');
+      const cancelBtn = document.getElementById('cancel-trip-btn');
+
+      if (callBtn) {
+        callBtn.addEventListener('click', () => this.callDriver());
+      }
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => this.cancelCurrentTrip());
+      }
+    }, 100);
   }
 
   showWaitingModal(destino) {
-    this.showModal(`
+    const modalHTML = `
       <div class="bg-white rounded-lg p-6 max-w-sm mx-auto text-center">
         <div class="animate-spin w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full mx-auto mb-4"></div>
         <h3 class="text-lg font-semibold mb-2">Buscando conductora...</h3>
         <p class="text-gray-600 mb-4">Destino: ${destino}</p>
-        <button onclick="passengerTrip.cancelCurrentTrip()" class="w-full bg-red-500 text-white py-2 rounded-lg font-medium">
+        <button id="cancel-waiting-btn" class="w-full bg-red-500 text-white py-2 rounded-lg font-medium">
           Cancelar
         </button>
       </div>
-    `);
+    `;
+
+    this.showModal(modalHTML);
+
+    // Agregar event listener
+    setTimeout(() => {
+      const cancelBtn = document.getElementById('cancel-waiting-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => this.cancelCurrentTrip());
+      }
+    }, 100);
   }
 
   showLoadingModal(message) {
@@ -306,6 +365,7 @@ class PassengerTripManager {
     if (!this.currentTrip) return;
 
     try {
+      console.log('❌ Cancelando viaje:', this.currentTrip);
       await update(ref(database, `trips/${this.currentTrip}`), {
         status: 'cancelled',
         cancelReason: 'Cancelado por pasajera',
@@ -322,22 +382,23 @@ class PassengerTripManager {
 
   callDriver() {
     this.showToast('📞 Iniciando llamada...', 'info');
+    // Aquí podrías integrar con una API de llamadas reales
   }
 
   resetTrip() {
-    if (this.tripListener) {
+    if (this.tripListener && this.currentTrip) {
       off(ref(database, `trips/${this.currentTrip}`), 'value', this.tripListener);
       this.tripListener = null;
     }
     
     this.currentTrip = null;
     
-    if (this.driverMarker) {
+    if (this.driverMarker && this.map) {
       this.map.removeLayer(this.driverMarker);
       this.driverMarker = null;
     }
     
-    if (this.routeLine) {
+    if (this.routeLine && this.map) {
       this.map.removeLayer(this.routeLine);
       this.routeLine = null;
     }
@@ -358,7 +419,8 @@ class PassengerTripManager {
   async getCurrentLocation() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        resolve({ lat: -17.7833, lng: -63.1821 }); // Santa Cruz por defecto
+        console.warn('Geolocalización no disponible, usando Santa Cruz');
+        resolve({ lat: -17.7833, lng: -63.1821 });
         return;
       }
 
@@ -370,7 +432,8 @@ class PassengerTripManager {
           });
         },
         (error) => {
-          console.warn('Error obteniendo ubicación, usando ubicación de Santa Cruz');
+          console.warn('Error obteniendo ubicación GPS:', error);
+          console.warn('Usando ubicación de Santa Cruz por defecto');
           resolve({ lat: -17.7833, lng: -63.1821 });
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
@@ -417,10 +480,33 @@ class PassengerTripManager {
   }
 }
 
+// Función global para toast (para compatibilidad)
+window.showToast = function(message, type = 'info') {
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'bg-green-500',
+    error: 'bg-red-500',
+    info: 'bg-blue-500'
+  };
+  
+  toast.className = `fixed top-4 right-4 ${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg z-50 transform transition-all duration-300`;
+  toast.textContent = message;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('opacity-0', 'translate-x-full');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+};
+
 // Inicializar sistema de viajes para pasajeras
 const passengerTrip = new PassengerTripManager();
 window.passengerTrip = passengerTrip;
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 Inicializando sistema de pasajera...');
   passengerTrip.init();
 });
+
+console.log('📜 JavaScript de pasajera cargado');

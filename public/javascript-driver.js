@@ -1,4 +1,4 @@
-// public/javascript-driver.js - Con sistema de limpieza
+// public/javascript-driver.js - Con sistema de limpieza y moneda Bs
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
 import { getDatabase, ref, onValue, off, update, remove } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
 
@@ -46,13 +46,12 @@ class DriverTripManager {
     this.initMap();
     this.setupEventListeners();
     this.setupNotificationPermission();
-    this.startCleanupService(); // Iniciar limpieza automática
+    this.startCleanupService();
     console.log('🚗 Sistema de conductora inicializado');
   }
 
   // Servicio de limpieza automática
   startCleanupService() {
-    // Limpiar viajes completados/cancelados cada 30 segundos
     this.cleanupInterval = setInterval(() => {
       this.cleanupOldTrips();
     }, 30000);
@@ -80,7 +79,6 @@ class DriverTripManager {
         const maxAge = 5 * 60 * 1000; // 5 minutos
 
         for (const [tripId, trip] of Object.entries(data)) {
-          // Eliminar viajes completados, cancelados o muy antiguos
           const shouldDelete = (
             trip.status === 'completed' ||
             trip.status === 'cancelled' ||
@@ -98,7 +96,6 @@ class DriverTripManager {
     }
   }
 
-  // Limpieza manual (botón)
   async manualCleanup() {
     try {
       this.showToast('🧹 Limpiando viajes antiguos...', 'info');
@@ -156,7 +153,7 @@ class DriverTripManager {
     };
     window.centerToMyLocation = () => this.centerToMyLocation();
     window.refreshRides = () => this.manualRefresh();
-    window.cleanupTrips = () => this.manualCleanup(); // Nueva función
+    window.cleanupTrips = () => this.manualCleanup();
   }
 
   async setupNotificationPermission() {
@@ -230,7 +227,6 @@ class DriverTripManager {
 
   async goOffline() {
     try {
-      // Detener cualquier movimiento en curso
       this.stopMovement();
       this.stopCleanupService();
       
@@ -374,7 +370,7 @@ class DriverTripManager {
     
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('🚗 ¡Nuevo viaje disponible!', {
-        body: `Viaje hacia: ${trip.destination}\nTarifa estimada: $${trip.estimatedFare}`,
+        body: `Viaje hacia: ${trip.destination}\nTarifa estimada: Bs${trip.estimatedFare}`,
         icon: '/images/logo_sin_fondo.png',
         tag: 'trip-' + trip.id,
         requireInteraction: true
@@ -422,9 +418,9 @@ class DriverTripManager {
           </div>
           
           <div class="grid grid-cols-2 gap-3">
-            <div class="bg-gray-50 rounded-lg p-3 text-center">
-              <p class="text-sm text-gray-600">💰 Tarifa</p>
-              <p class="font-bold text-lg text-green-600">$${trip.estimatedFare}</p>
+            <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 text-center border-2 border-green-200">
+              <p class="text-sm text-green-700 font-medium">💰 Tarifa</p>
+              <p class="font-bold text-2xl text-green-600 mt-1">Bs${trip.estimatedFare}</p>
             </div>
             <div class="bg-gray-50 rounded-lg p-3 text-center">
               <p class="text-sm text-gray-600">📏 Distancia</p>
@@ -491,7 +487,6 @@ class DriverTripManager {
       this.hideModal();
       this.showToast('Aceptando viaje...', 'info');
 
-      // Encontrar el viaje específico
       const trip = this.availableTrips.find(t => t.id === tripId);
       if (!trip) {
         throw new Error('Viaje no encontrado');
@@ -517,7 +512,6 @@ class DriverTripManager {
       this.currentTrip = trip;
       this.targetPosition = trip.passenger.location;
       
-      // Mostrar ruta y iniciar movimiento
       this.showRouteToPassenger(driverLocation, trip.passenger.location);
       this.startMovementToPassenger(trip.passenger.location);
       
@@ -534,7 +528,6 @@ class DriverTripManager {
   showRouteToPassenger(driverLocation, passengerLocation) {
     if (!map) return;
 
-    // Remover ruta anterior si existe
     if (this.routeLine) {
       map.removeLayer(this.routeLine);
     }
@@ -551,7 +544,6 @@ class DriverTripManager {
       dashArray: '10, 10'
     }).addTo(map);
 
-    // Ajustar vista para mostrar toda la ruta
     const group = new L.featureGroup([this.routeLine]);
     map.fitBounds(group.getBounds().pad(0.1));
   }
@@ -565,13 +557,12 @@ class DriverTripManager {
     this.isMoving = true;
     this.targetPosition = passengerLocation;
 
-    // Calcular la distancia total y el número de pasos
     const startLat = this.currentPosition.lat;
     const startLng = this.currentPosition.lng;
     const endLat = passengerLocation.lat;
     const endLng = passengerLocation.lng;
 
-    const totalSteps = 30; // Número de pasos para llegar
+    const totalSteps = 30;
     const stepLat = (endLat - startLat) / totalSteps;
     const stepLng = (endLng - startLng) / totalSteps;
 
@@ -579,22 +570,18 @@ class DriverTripManager {
 
     this.movementInterval = setInterval(async () => {
       if (currentStep >= totalSteps) {
-        // Llegó al destino
         this.arrivedAtPassenger();
         return;
       }
 
-      // Calcular nueva posición
       const newLat = startLat + (stepLat * currentStep);
       const newLng = startLng + (stepLng * currentStep);
       
       this.currentPosition = { lat: newLat, lng: newLng };
 
-      // Actualizar marcador en el mapa
       if (currentLocationMarker && map) {
         currentLocationMarker.setLatLng([newLat, newLng]);
         
-        // Actualizar la línea de ruta
         if (this.routeLine) {
           map.removeLayer(this.routeLine);
           
@@ -612,7 +599,6 @@ class DriverTripManager {
         }
       }
 
-      // Actualizar posición en Firebase para que la pasajera lo vea
       try {
         await update(ref(database, `trips/${this.currentTrip.id}/driver/location`), {
           lat: newLat,
@@ -624,16 +610,14 @@ class DriverTripManager {
 
       currentStep++;
       
-      // Calcular progreso
       const progress = Math.round((currentStep / totalSteps) * 100);
       console.log(`🚗 Progreso: ${progress}%`);
       
-      // Mostrar toast de progreso cada 25%
       if (progress % 25 === 0 && progress > 0 && progress < 100) {
         this.showToast(`🚗 ${progress}% del camino completado`, 'info');
       }
 
-    }, 2000); // Moverse cada 2 segundos
+    }, 2000);
   }
 
   async arrivedAtPassenger() {
@@ -641,7 +625,6 @@ class DriverTripManager {
     this.stopMovement();
     
     try {
-      // Actualizar estado del viaje
       await update(ref(database, `trips/${this.currentTrip.id}`), {
         status: 'in_progress',
         arrivedAt: Date.now()
@@ -649,14 +632,166 @@ class DriverTripManager {
       
       this.showToast('🎯 ¡Has llegado a la pasajera!', 'success');
       
-      // Simular que después de 10 segundos se completa el viaje
+      // Mostrar modal de llegada a recoger pasajera
+      this.showPassengerPickupModal();
+      
+      // Simular que después de 10 segundos inicia el viaje al destino
       setTimeout(async () => {
-        await this.completeTrip();
+        await this.startTripToDestination();
       }, 10000);
       
     } catch (error) {
       console.error('Error al arribar:', error);
     }
+  }
+
+  showPassengerPickupModal() {
+    const modalHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-sm mx-auto">
+        <div class="text-center mb-4">
+          <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-white text-2xl">🎯</span>
+          </div>
+          <h3 class="text-lg font-semibold">¡Has llegado!</h3>
+          <p class="text-sm text-gray-600 mt-2">Espera a que la pasajera suba al vehículo</p>
+        </div>
+        
+        <div class="space-y-3">
+          <div class="bg-blue-50 rounded-lg p-3">
+            <p class="text-blue-700 text-sm font-medium">📋 Recordatorio:</p>
+            <ul class="text-blue-600 text-xs mt-1 space-y-1">
+              <li>• Verifica la identidad de la pasajera</li>
+              <li>• Confirma el destino: ${this.currentTrip.destination}</li>
+              <li>• Asegúrate de que se abroche el cinturón</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="mt-6">
+          <button id="start-trip-btn" class="w-full bg-green-500 text-white py-3 rounded-lg font-medium">
+            🚗 Iniciar Viaje al Destino
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.showModal(modalHTML);
+
+    setTimeout(() => {
+      const startBtn = document.getElementById('start-trip-btn');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.startTripToDestination();
+        });
+      }
+    }, 100);
+  }
+
+  async startTripToDestination() {
+    try {
+      await update(ref(database, `trips/${this.currentTrip.id}`), {
+        status: 'traveling_to_destination',
+        travelStartedAt: Date.now()
+      });
+      
+      this.showToast('🚗 Iniciando viaje al destino...', 'info');
+      
+      // Simular viaje al destino (15 segundos)
+      setTimeout(async () => {
+        await this.arrivedAtDestination();
+      }, 15000);
+      
+    } catch (error) {
+      console.error('Error iniciando viaje al destino:', error);
+    }
+  }
+
+  async arrivedAtDestination() {
+    console.log('🏁 ¡Llegaste al destino!');
+    
+    try {
+      await update(ref(database, `trips/${this.currentTrip.id}`), {
+        status: 'arrived_at_destination',
+        arrivedAtDestinationTime: Date.now()
+      });
+      
+      this.showToast('🏁 ¡Has llegado al destino!', 'success');
+      
+      // Mostrar modal de llegada al destino
+      this.showDestinationArrivalModal();
+      
+    } catch (error) {
+      console.error('Error al llegar al destino:', error);
+    }
+  }
+
+  showDestinationArrivalModal() {
+    const modalHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
+        <div class="text-center mb-4">
+          <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-white text-2xl">🏁</span>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900">¡Llegaste al Destino!</h3>
+          <p class="text-sm text-gray-600 mt-2">Destino: ${this.currentTrip.destination}</p>
+        </div>
+        
+        <div class="space-y-4 mb-6">
+          <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 text-center border-2 border-green-200">
+            <p class="text-sm text-green-700 font-medium">💰 Tarifa del Viaje</p>
+            <p class="font-bold text-4xl text-green-600 mt-1">Bs${this.currentTrip.estimatedFare}</p>
+            <p class="text-xs text-green-600 mt-1">Cobrar a la pasajera</p>
+          </div>
+          
+          <div class="bg-blue-50 rounded-lg p-3">
+            <p class="text-blue-700 text-sm font-medium">✅ Pasos finales:</p>
+            <ul class="text-blue-600 text-xs mt-1 space-y-1">
+              <li>• Confirma que llegaron al destino correcto</li>
+              <li>• Cobra la tarifa: Bs${this.currentTrip.estimatedFare}</li>
+              <li>• Agradece a la pasajera por elegir Lady's On Go</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="flex space-x-3">
+          <button 
+            id="complete-trip-btn" 
+            class="flex-1 bg-green-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-600 transition-colors"
+          >
+            ✅ Completar Viaje
+          </button>
+          <button 
+            id="issue-trip-btn"
+            class="flex-1 bg-yellow-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-yellow-600 transition-colors"
+          >
+            ⚠️ Reportar Problema
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.showModal(modalHTML);
+
+    setTimeout(() => {
+      const completeBtn = document.getElementById('complete-trip-btn');
+      const issueBtn = document.getElementById('issue-trip-btn');
+
+      if (completeBtn) {
+        completeBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.completeTrip();
+        });
+      }
+
+      if (issueBtn) {
+        issueBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.showToast('⚠️ Reporte enviado al soporte', 'info');
+          // Aquí podrías abrir un modal de reporte de problemas
+        });
+      }
+    }, 100);
   }
 
   async completeTrip() {
@@ -741,8 +876,8 @@ class DriverTripManager {
             <h4 class="font-medium text-gray-900">${trip.passenger.name}</h4>
             <p class="text-sm text-gray-600">${trip.destination}</p>
           </div>
-          <span class="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
-            $${trip.estimatedFare}
+          <span class="bg-green-100 text-green-800 text-lg font-bold px-3 py-2 rounded-lg border-2 border-green-300">
+            Bs${trip.estimatedFare}
           </span>
         </div>
         
@@ -797,9 +932,9 @@ class DriverTripManager {
     }
     
     if (earningsElement) {
-      const current = parseInt(earningsElement.textContent.replace('$', '').replace(',', '')) || 0;
+      const current = parseInt(earningsElement.textContent.replace('Bs', '').replace(',', '')) || 0;
       const newEarnings = current + Math.floor(Math.random() * 25) + 15;
-      earningsElement.textContent = `${newEarnings}`;
+      earningsElement.textContent = `Bs${newEarnings}`;
     }
   }
 

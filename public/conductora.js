@@ -423,7 +423,7 @@ class DriverApp {
                   <p><strong>📍 Recoger en:</strong> ${ride.pasajera.lat.toFixed(4)}, ${ride.pasajera.lng.toFixed(4)}</p>
                   <p><strong>🎯 Destino:</strong> ${ride.destino}</p>
                   <p><strong>⏰ Solicitado:</strong> ${timeAgo}</p>
-                  <p><strong>💰 Tarifa estimada:</strong> $${fare}</p>
+                  <p><strong>💰 Tarifa estimada:</strong> Bs${fare}</p>
                 </div>
               </div>
               <div class="ride-actions">

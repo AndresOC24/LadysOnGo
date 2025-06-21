@@ -1,4 +1,4 @@
-// public/javascript-passenger.js - Sistema completo para pasajeras
+// public/javascript-passenger.js - Sistema completo para pasajeras con confirmación y seguimiento
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
 import { getDatabase, ref, push, onValue, off, update } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js';
 
@@ -61,14 +61,12 @@ class PassengerTripManager {
     if (menuButton) menuButton.addEventListener('click', openMenu);
     if (menuOverlay) menuOverlay.addEventListener('click', closeMenu);
 
-    // Cerrar menú con tecla Escape
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && slideMenu?.classList.contains('active')) {
         closeMenu();
       }
     });
 
-    // Manejar click en los elementos del menú
     const menuItems = document.querySelectorAll('.slide-menu a');
     menuItems.forEach(item => {
       item.addEventListener('click', function(e) {
@@ -86,7 +84,6 @@ class PassengerTripManager {
 
   async initMap() {
     try {
-      // Verificar si Leaflet está disponible
       if (typeof L === 'undefined') {
         console.error('❌ Leaflet no está cargado');
         return;
@@ -172,10 +169,93 @@ class PassengerTripManager {
 
     try {
       console.log('📝 Solicitando viaje a:', destino);
+      
+      const passengerLocation = await this.getCurrentLocation();
+      const estimatedFare = Math.floor(Math.random() * 25) + 15;
+      
+      // Mostrar modal de confirmación ANTES de enviar a la conductora
+      this.showConfirmationModal(destino, estimatedFare, passengerLocation);
+
+    } catch (error) {
+      console.error('❌ Error solicitando viaje:', error);
+      this.showToast('❌ Error al solicitar viaje: ' + error.message, 'error');
+    }
+  }
+
+  showConfirmationModal(destino, estimatedFare, passengerLocation) {
+    const modalHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
+        <div class="text-center mb-4">
+          <div class="w-16 h-16 bg-pink-500 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-white text-2xl">🚗</span>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900">Confirmar Viaje</h3>
+        </div>
+        
+        <div class="space-y-4 mb-6">
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-sm text-gray-600">📍 Destino:</p>
+            <p class="font-medium text-gray-900">${destino}</p>
+          </div>
+          
+          <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 text-center border-2 border-green-200">
+            <p class="text-sm text-green-700 font-medium">💰 Tarifa Estimada</p>
+            <p class="font-bold text-3xl text-green-600 mt-1">Bs${estimatedFare}</p>
+          </div>
+          
+          <div class="bg-blue-50 rounded-lg p-3">
+            <p class="text-blue-700 text-sm font-medium">ℹ️ Información importante:</p>
+            <ul class="text-blue-600 text-xs mt-1 space-y-1">
+              <li>• El precio puede variar según la distancia real</li>
+              <li>• Se buscará una conductora cercana</li>
+              <li>• Recibirás notificaciones del progreso</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="flex space-x-3">
+          <button 
+            id="confirm-trip-btn" 
+            class="flex-1 bg-pink-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-pink-600 transition-colors"
+          >
+            ✅ Confirmar
+          </button>
+          <button 
+            id="cancel-confirm-btn"
+            class="flex-1 bg-gray-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-gray-600 transition-colors"
+          >
+            ❌ Cancelar
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.showModal(modalHTML);
+
+    setTimeout(() => {
+      const confirmBtn = document.getElementById('confirm-trip-btn');
+      const cancelBtn = document.getElementById('cancel-confirm-btn');
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.createTripRequest(destino, estimatedFare, passengerLocation);
+        });
+      }
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.showToast('❌ Solicitud cancelada', 'info');
+        });
+      }
+    }, 100);
+  }
+
+  async createTripRequest(destino, estimatedFare, passengerLocation) {
+    try {
       this.showLoadingModal('Solicitando viaje...');
 
-      const passengerLocation = await this.getCurrentLocation();
-      
       const tripData = {
         id: Date.now().toString(),
         passenger: {
@@ -187,7 +267,7 @@ class PassengerTripManager {
         status: 'pending',
         timestamp: Date.now(),
         driver: null,
-        estimatedFare: Math.floor(Math.random() * 25) + 15
+        estimatedFare: estimatedFare
       };
 
       console.log('📊 Datos del viaje:', tripData);
@@ -197,15 +277,15 @@ class PassengerTripManager {
       console.log('✅ Viaje creado con ID:', this.currentTrip);
       
       this.hideLoadingModal();
-      this.showWaitingModal(destino);
+      this.showWaitingModal(destino, estimatedFare);
       this.startListeningToTrip(newTripRef.key);
       
       this.showToast('✅ Viaje solicitado, buscando conductora...', 'success');
 
     } catch (error) {
-      console.error('❌ Error solicitando viaje:', error);
+      console.error('❌ Error creando viaje:', error);
       this.hideLoadingModal();
-      this.showToast('❌ Error al solicitar viaje: ' + error.message, 'error');
+      this.showToast('❌ Error al crear viaje: ' + error.message, 'error');
     }
   }
 
@@ -241,6 +321,14 @@ class PassengerTripManager {
         console.log('🚗 Conductora llegó, viaje en progreso');
         this.handleTripInProgress(trip);
         break;
+      case 'traveling_to_destination':
+        console.log('🚗 Viajando al destino');
+        this.handleTravelingToDestination(trip);
+        break;
+      case 'arrived_at_destination':
+        console.log('🏁 Llegaste al destino');
+        this.handleArrivedAtDestination(trip);
+        break;
       case 'completed':
         console.log('🏁 Viaje completado');
         this.handleTripCompleted(trip);
@@ -252,8 +340,172 @@ class PassengerTripManager {
     }
   }
 
+  handleTravelingToDestination(trip) {
+    this.hideModal(); // Cerrar modal de llegada para recoger
+    this.showToast('🚗 ¡Viajando al destino!', 'success');
+    
+    // Opcional: Mostrar información del viaje en progreso
+    this.showTravelingModal(trip);
+  }
+
+  showTravelingModal(trip) {
+    const modalHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-sm mx-auto">
+        <div class="text-center mb-4">
+          <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-white text-2xl">🚗</span>
+          </div>
+          <h3 class="text-lg font-semibold">¡Viaje en Progreso!</h3>
+          <p class="text-sm text-gray-600 mt-2">Dirigiéndose a: ${trip.destination}</p>
+        </div>
+        
+        <div class="space-y-3">
+          <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-3 border-2 border-blue-200">
+            <p class="text-sm text-blue-700 font-medium">💰 Tarifa del Viaje</p>
+            <p class="font-bold text-2xl text-blue-600">Bs${trip.estimatedFare}</p>
+          </div>
+          
+          <div class="bg-green-50 rounded-lg p-3">
+            <p class="text-green-700 text-sm font-medium">✅ Durante el viaje:</p>
+            <ul class="text-green-600 text-xs mt-1 space-y-1">
+              <li>• Mantén tu cinturón abrochado</li>
+              <li>• Puedes seguir la ruta en el mapa</li>
+              <li>• Comunícate con la conductora si es necesario</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="mt-6 space-y-2">
+          <button id="call-driver-travel-btn" class="w-full bg-blue-500 text-white py-2 rounded-lg font-medium">
+            📞 Llamar Conductora
+          </button>
+          <button id="close-travel-btn" class="w-full bg-gray-500 text-white py-2 rounded-lg font-medium">
+            ✅ Cerrar
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.showModal(modalHTML);
+
+    setTimeout(() => {
+      const callBtn = document.getElementById('call-driver-travel-btn');
+      const closeBtn = document.getElementById('close-travel-btn');
+
+      if (callBtn) {
+        callBtn.addEventListener('click', () => this.callDriver());
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => this.hideModal());
+      }
+    }, 100);
+  }
+
+  handleArrivedAtDestination(trip) {
+    this.hideModal(); // Cerrar cualquier modal abierto
+    this.showToast('🏁 ¡Has llegado al destino!', 'success');
+    
+    // Mostrar modal de llegada al destino para la pasajera
+    this.showDestinationArrivalModalPassenger(trip);
+  }
+
+  showDestinationArrivalModalPassenger(trip) {
+    const modalHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
+        <div class="text-center mb-4">
+          <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span class="text-white text-2xl">🏁</span>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900">¡Has Llegado!</h3>
+          <p class="text-sm text-gray-600 mt-2">Destino: ${trip.destination}</p>
+        </div>
+        
+        <div class="space-y-4 mb-6">
+          <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 text-center border-2 border-green-200">
+            <p class="text-sm text-green-700 font-medium">💰 Tarifa a Pagar</p>
+            <p class="font-bold text-4xl text-green-600 mt-1">Bs${trip.estimatedFare}</p>
+            <p class="text-xs text-green-600 mt-1">Pagar a la conductora</p>
+          </div>
+          
+          <div class="bg-blue-50 rounded-lg p-3">
+            <p class="text-blue-700 text-sm font-medium">💳 Métodos de pago disponibles:</p>
+            <ul class="text-blue-600 text-xs mt-1 space-y-1">
+              <li>• Efectivo</li>
+              <li>• Transferencia QR</li>
+              <li>• Tarjeta de débito/crédito</li>
+            </ul>
+          </div>
+          
+          <div class="bg-yellow-50 rounded-lg p-3">
+            <p class="text-yellow-700 text-sm font-medium">⭐ Antes de bajar:</p>
+            <ul class="text-yellow-600 text-xs mt-1 space-y-1">
+              <li>• Verifica que llegaste al destino correcto</li>
+              <li>• Revisa que no olvides tus pertenencias</li>
+              <li>• Agradece a tu conductora</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="flex space-x-3">
+          <button 
+            id="confirm-payment-btn" 
+            class="flex-1 bg-green-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-600 transition-colors"
+          >
+            ✅ Pago Realizado
+          </button>
+          <button 
+            id="report-issue-passenger-btn"
+            class="flex-1 bg-yellow-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-yellow-600 transition-colors"
+          >
+            ⚠️ Reportar
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.showModal(modalHTML);
+
+    setTimeout(() => {
+      const confirmBtn = document.getElementById('confirm-payment-btn');
+      const reportBtn = document.getElementById('report-issue-passenger-btn');
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.confirmPaymentAndComplete();
+        });
+      }
+
+      if (reportBtn) {
+        reportBtn.addEventListener('click', () => {
+          this.hideModal();
+          this.showToast('⚠️ Reporte enviado', 'info');
+        });
+      }
+    }, 100);
+  }
+
+  async confirmPaymentAndComplete() {
+    try {
+      // La pasajera confirma el pago, esto desencadena la finalización
+      await update(ref(database, `trips/${this.currentTrip}`), {
+        status: 'completed',
+        paymentConfirmed: true,
+        completedAt: Date.now()
+      });
+      
+      this.showToast('✅ ¡Pago confirmado!', 'success');
+      
+    } catch (error) {
+      console.error('Error confirmando pago:', error);
+      this.showToast('❌ Error confirmando pago', 'error');
+    }
+  }
+
   handleTripAccepted(trip) {
-    this.hideWaitingModal();
+    this.hideWaitingModal(); // Cerrar modal de "buscando conductora"
+    this.hideLoadingModal(); // Cerrar cualquier modal de carga
     this.showToast('🎉 ¡Viaje aceptado!', 'success');
     this.showDriverInfo(trip.driver);
     this.addDriverToMap(trip.driver.location);
@@ -436,73 +688,6 @@ class PassengerTripManager {
     this.showModal(modalHTML);
 
     setTimeout(() => {
-      const callBtn = document.getElementById('call-driver-btn');
-      const closeBtn = document.getElementById('close-driver-info-btn');
-      const cancelBtn = document.getElementById('cancel-trip-btn');
-
-      if (callBtn) {
-        callBtn.addEventListener('click', () => this.callDriver());
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener('click', () => this.hideModal());
-      }
-
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => this.cancelCurrentTrip());
-      }
-    }, 100);
-  }
-
-  handleTripInProgress(trip) {
-    this.hideModal();
-    this.showToast('🎯 ¡Tu conductora ha llegado!', 'success');
-    
-    // Mostrar modal de llegada
-    this.showArrivalModal(trip.driver);
-  }
-
-  showArrivalModal(driver) {
-    const modalHTML = `
-      <div class="bg-white rounded-lg p-6 max-w-sm mx-auto">
-        <div class="text-center mb-4">
-          <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
-            <span class="text-white text-2xl">🎯</span>
-          </div>
-          <h3 class="text-lg font-semibold">¡Tu conductora ha llegado!</h3>
-          <p class="text-sm text-gray-600 mt-2">Busca el vehículo: ${driver.vehicle}</p>
-        </div>
-        
-        <div class="space-y-3">
-          <div class="bg-green-50 rounded-lg p-3 text-center">
-            <p class="text-green-700 font-medium">🚗 ${driver.vehicle}</p>
-            <p class="text-green-600 text-sm">Conductora: ${driver.name}</p>
-          </div>
-          
-          <div class="bg-yellow-50 rounded-lg p-3">
-            <p class="text-yellow-700 text-sm font-medium">⚠️ Consejos de seguridad:</p>
-            <ul class="text-yellow-600 text-xs mt-1 space-y-1">
-              <li>• Verifica la placa del vehículo</li>
-              <li>• Confirma el nombre de la conductora</li>
-              <li>• Comparte tu ubicación con alguien de confianza</li>
-            </ul>
-          </div>
-        </div>
-        
-        <div class="mt-6 space-y-2">
-          <button id="call-driver-arrival-btn" class="w-full bg-blue-500 text-white py-2 rounded-lg font-medium">
-            📞 Llamar Conductora
-          </button>
-          <button id="confirm-arrival-btn" class="w-full bg-green-500 text-white py-2 rounded-lg font-medium">
-            ✅ Confirmar que subí al vehículo
-          </button>
-        </div>
-      </div>
-    `;
-
-    this.showModal(modalHTML);
-
-    setTimeout(() => {
       const callBtn = document.getElementById('call-driver-arrival-btn');
       const confirmBtn = document.getElementById('confirm-arrival-btn');
 
@@ -519,12 +704,18 @@ class PassengerTripManager {
     }, 100);
   }
 
-  showWaitingModal(destino) {
+  showWaitingModal(destino, estimatedFare) {
     const modalHTML = `
       <div class="bg-white rounded-lg p-6 max-w-sm mx-auto text-center">
         <div class="animate-spin w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full mx-auto mb-4"></div>
         <h3 class="text-lg font-semibold mb-2">Buscando conductora...</h3>
-        <p class="text-gray-600 mb-4">Destino: ${destino}</p>
+        <p class="text-gray-600 mb-2">Destino: ${destino}</p>
+        
+        <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-3 mb-4 border-2 border-green-200">
+          <p class="text-sm text-green-700 font-medium">💰 Tarifa Estimada</p>
+          <p class="font-bold text-2xl text-green-600">Bs${estimatedFare}</p>
+        </div>
+        
         <div class="bg-blue-50 rounded-lg p-3 mb-4">
           <p class="text-blue-600 text-sm">💡 Mientras esperas, asegúrate de estar en un lugar seguro y visible</p>
         </div>
@@ -618,9 +809,9 @@ class PassengerTripManager {
         <h3 class="text-lg font-semibold mb-2">¡Viaje Completado!</h3>
         <p class="text-gray-600 mb-4">Esperamos que hayas tenido un viaje seguro y cómodo</p>
         
-        <div class="bg-gray-50 rounded-lg p-3 mb-4">
-          <p class="text-sm text-gray-600">Tarifa del viaje:</p>
-          <p class="text-lg font-bold text-green-600">$${trip.estimatedFare}</p>
+        <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 mb-4 border-2 border-green-200">
+          <p class="text-sm text-green-700 font-medium">💰 Tarifa del viaje</p>
+          <p class="text-4xl font-bold text-green-600 mt-1">Bs${trip.estimatedFare}</p>
         </div>
         
         <div class="space-y-2">
